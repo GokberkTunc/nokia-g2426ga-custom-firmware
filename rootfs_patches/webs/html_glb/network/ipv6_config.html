@@ -1,0 +1,740 @@
+<!-- vim:fenc=utf-8-->
+<html>
+<%include ( "html_glb/head.html" ) %>
+<script type="text/javascript" src="/js_glb/ipaddr.js"></script>
+<style type="text/css">
+.x_w1 {
+	width: 530px;
+}
+.x_line {
+	width: 760px;
+	height: 45px;
+	background-image: url(../img_glb/hline.png)
+}
+
+.x_form_v6_caption {	width: 400px;	font-size: 14px;	text-align: left;	vertical-align: middle;}
+.x_form_v6_input { width: 200px;	font-size: 14px;	text-align: left;	vertical-align: middle;}
+</style>
+<script>
+     var if_conns={ <% if_conns %> };
+     var ipv6_LanCfg={<% ipv6_LanCfg %>};
+     var ipv6_PrefixInfo={<% ipv6_PrefixInfo %>};
+     var ipv6_Server={ <% ipv6_Server %> };
+     var slacc_Cfg={ <% slacc_Cfg %> };
+     var prefixDeligator={ <% prefixDeligator %> };
+     var oldPrefixEnable = false;
+     var oldPrefixLength = 0;
+     var oldIntType = "WANDelegated";
+     var oldStaticData = "";
+
+
+	function DisableSomeElements()
+	{
+		return;
+		$("select[name='LanDNS_select']").prop("disabled",true);
+		$("input[name='LanPri_DNS_text']").prop("disabled",true);
+		$("input[name='LanSec_DNS_text']").prop("disabled",true);
+		$("select[name='LanDNS_Interface_select']").prop("disabled",true);
+		$("select[name='LanPrefix_select']").prop("disabled",true);
+		$("input[name='LanPrefix_text']").prop("disabled",true);
+		$("select[name='LanInterface_select']").prop("disabled",true);
+		$("input[name='LanStartAddress_text']").prop("disabled",true);
+		$("input[name='LanEndAddress_text']").prop("disabled",true);
+		$("input[name='LanAddressInfo_checkbox']").prop("disabled",true);
+		$("input[name='LanOtherInfo_checkbox']").prop("disabled",true);
+		$("input[name='LanMaxRA_text']").prop("disabled",true);
+        $("input[name='LanMinRA_text']").prop("disabled",true);
+        $("input[name='prefix_deli_en']").prop("disabled",true);
+        $("select[name='prefixDeligator_select']").prop("disabled",true);
+        $("input[name='prefix_deliPrefix']").prop("disabled",true);
+        $("input[name='prefix_deli_len']").prop("disabled",true);
+        $("select[name='prefixDeligatorInt_select']").prop("disabled",true);
+		$("#Apply_button").prop("disabled",true);	
+	}
+    function EnableSomeElements()
+    {
+        $("select[name='LanDNS_select']").prop("disabled",false);
+        $("input[name='LanPri_DNS_text']").prop("disabled",false);
+        $("input[name='LanSec_DNS_text']").prop("disabled",false);
+        $("select[name='LanDNS_Interface_select']").prop("disabled",false);
+        $("select[name='LanPrefix_select']").prop("disabled",false);
+        $("input[name='LanPrefix_text']").prop("disabled",false);
+        $("select[name='LanInterface_select']").prop("disabled",false);
+        $("input[name='LanStartAddress_text']").prop("disabled",false);
+        $("input[name='LanEndAddress_text']").prop("disabled",false);
+        $("input[name='LanAddressInfo_checkbox']").prop("disabled",false);
+        $("input[name='LanOtherInfo_checkbox']").prop("disabled",false);
+        $("input[name='LanMaxRA_text']").prop("disabled",false);
+        $("input[name='LanMinRA_text']").prop("disabled",false);
+        $("#Apply_button").prop("disabled",false); 
+    }
+     function CheckIpv6For64bit(str)
+     {
+         if(!str.trim())return false;
+         var t=str.split("/");
+         ipstr=t[0];
+
+         if(! /^\s*((([0-9A-Fa-f]{1,4}:){3}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){2}((:[0-9A-Fa-f]{1,4})|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,2})|:))|(:(((:[0-9A-Fa-f]{1,4}){1,3})|:)))(%.+)?\s*$/.test(ipstr))
+         return false;
+         
+         pl=t[1];
+         if(pl){
+             if(pl.isdd() && parseInt(pl)>=0 && parseInt(pl)<=128){
+                 return true;
+             }
+             return false;
+         }
+         return true;
+     }
+
+	 function checkipv6ForDNS(str)
+	{
+		//address should not be 0 in all.
+		if (str.match(/[1-9A-Fa-f]/g)==null)
+			return false;
+
+	    if(!str.trim())return false;
+		if(str.indexOf("/")!=-1)
+			return false;
+	    ipstr=str;
+	    if (! /^\s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(%.+)?\s*$/.test(ipstr) )
+	        return false;	    
+	    return true;
+	}
+
+  function checkipv6Addresss(ipv6)
+	{
+        if(v6 !== undefined) {
+		return new v6.Address(ipv6);
+		}
+	}
+	 
+    $(function(){
+    	$.fn.append.apply($(":input[name='LanInterface_select'],:input[name='LanDNS_Interface_select'],:input[name='prefixDeligatorInt_select']"),
+            $.map(
+                $.map(if_conns,function(conn,i){
+                    return $.map(conn.ipConns,function(ipConn,j){
+                        if((ipConn.X_ASB_COM_IPv6Enabled == 0)||(ipConn.X_CT_COM_ServiceList.search("INTERNET")==-1)) return[];
+                        return {'n':ipConn.Name,'x':ipConn.X_ASB_COM_IfName};
+                    })
+                    .concat(
+                        $.map(conn.pppConns,function(pppConn,j){
+                            if((pppConn.X_ASB_COM_IPv6Enabled == 0)||(pppConn.ConnectionType == "PPPoE_Bridged")) return[];
+                            return {'n':pppConn.Name,'x':pppConn.X_ASB_COM_IfName};
+                        })
+                    )
+                }),
+                function(ifi,i){
+                    return $("<option/>").val(ifi.x).html(ifi.n);
+                }
+            )
+        );
+        var isEnabled=$("input[name='prefix_deli_en']").is(":checked");
+        if(isEnabled){
+            $("#is_prefixDeligator").show();
+         }
+         else{
+            $("#is_prefixDeligator").hide();
+         }
+
+		<%if !ctcadmin then%>
+		<% if !can_end_user_config_ipv6 then %>
+         DisableSomeElements();
+		 <%end%>
+    <% if defined("enable_user_lanipv6") then%>
+    EnableSomeElements();
+    <% end %>
+		 <%end%>
+		
+        with(ipv6_LanCfg)
+		{
+               $("select[name='LanDNS_select']").val(IPv6DNSConfigType);
+               $(":input[name='LanPri_DNS_text']").val(IPv6DNSServers.split(",")[0]?IPv6DNSServers.split(",")[0]:"");
+               $(":input[name='LanSec_DNS_text']").val(IPv6DNSServers.split(",")[1]?IPv6DNSServers.split(",")[1]:"");
+               var face=$(":input[name='LanDNS_Interface_select']").val();
+               $(":input[name='LanDNS_Interface_select']").val(IPv6DNSWANConnection);
+               var LanDNS=$("select[name='LanDNS_select']").val();
+              if(LanDNS=="Static")
+			  {
+               	   $("#dns_addr1").show();
+               	   $("#dns_addr2").show();    
+               	   $("#wan_iface_dns").hide();
+               }
+			   else if(LanDNS=="WANConnection")
+			   {
+               	   $("#dns_addr1").hide();
+               	   $("#dns_addr2").hide();    
+               	   $("#wan_iface_dns").show();
+               }
+			   else if(LanDNS="HGWProxy")
+			   {
+               	   $("#dns_addr1").hide();
+               	   $("#dns_addr2").hide();    
+               	   $("#wan_iface_dns").hide();
+               }
+	          $("select[name='LanDNS_select']").change(function(){
+	          	  if(this.value=="HGWProxy")
+				  {
+	          	  	 $("#dns_addr1").hide();
+               	     $("#dns_addr2").hide();    	          	  	 
+               	     $("#wan_iface_dns").hide();
+	          	  }
+	              ((this.value=="Static")?$.fn.show:$.fn.hide).call($("#dns_addr1"));
+	              ((this.value=="Static")?$.fn.show:$.fn.hide).call($("#dns_addr2"));	   	              
+	              ((this.value=="WANConnection")?$.fn.show:$.fn.hide).call($("#wan_iface_dns"));
+	          })             
+        
+        }   
+        
+        with(prefixDeligator)
+        {
+          //Enable
+          $("input[name='prefix_deli_en']").set_checked(IAPDEnable);
+          // prefixDeligator_select
+          $("select[name='prefixDeligator_select']").val(Mode);
+          // IAPDPrefix -prefix_deliPrefix
+          $(":input[name='prefix_deliPrefix']").val(IAPDPrefix);
+          // prefix_deli_len
+          $(":input[name='prefix_deli_len']").val(IAPDAddLength);
+
+          oldPrefixEnable = IAPDEnable == 0 ? false : true;
+          oldPrefixLength = IAPDAddLength;
+          oldIntType = Mode;
+          oldStaticData = IAPDPrefix;
+
+            if(IAPDEnable){
+                $("#is_prefixDeligator").show();
+            }
+            else{
+                $("#is_prefixDeligator").hide();
+            }
+
+            // Prefix deligator RCR changes
+            //checking enable to show prefix config data
+            $("input[name='prefix_deli_en']").change(function(){
+                if(this.checked)
+                {
+                $("#is_prefixDeligator").show();
+                }
+                else
+                { 
+                $("#is_prefixDeligator").hide();
+                }    
+            })
+
+            var prefixDeligatorInt=$("select[name='prefixDeligator_select']").val();
+            if(prefixDeligatorInt=="Static"){
+                $("#prefix_deligatorPrefix").show();
+                $("#prefixDeli_interface").hide();
+            }
+            else if(prefixDeligatorInt=="WANDelegated"){
+                $("#prefix_deligatorPrefix").hide();
+                $("#prefixDeli_interface").show();
+                var selectedInterface = DelegatedWanConnection;
+                $.map(if_conns,function(conn,i){
+                    $.map(conn.ipConns,function(ipConn,j){
+                        if((ipConn.X_ASB_COM_IPv6Enabled !== 0)||(ipConn.X_CT_COM_ServiceList.search("INTERNET") !==-1)) {
+                          if (ipv6_LanCfg.IPv6DNSWANConnection === ipConn.X_ASB_COM_IfName) {
+                            selectedInterface = ipConn.X_ASB_COM_IfName
+                          }
+                        }
+                    })
+
+                    $.map(conn.pppConns,function(pppConn,j){
+                      if((pppConn.X_ASB_COM_IPv6Enabled !== 0)||(pppConn.ConnectionType !== "PPPoE_Bridged")) {
+                        if (ipv6_LanCfg.IPv6DNSWANConnection === pppConn.X_ASB_COM_IfName) {
+                          selectedInterface = pppConn.X_ASB_COM_IfName
+                        }
+                      }
+                    })
+                }),
+                function(ifi,i){
+                    return $(":input[name='prefixDeligatorInt_select']").val(selectedInterface);
+                }
+            }
+            else{
+                $("#prefix_deligatorPrefix").hide();
+            }
+
+            $("select[name='prefixDeligator_select']").change(function(){
+                  ((this.value=="Static")?$.fn.show:$.fn.hide).call($("#prefix_deligatorPrefix"));
+                  ((this.value=="WANDelegated")?$.fn.show:$.fn.hide).call($("#prefixDeli_interface"));
+
+              })
+        }
+
+        with(ipv6_PrefixInfo)
+		{
+            $("select[name='LanPrefix_select']").val(Mode);
+            $(":input[name='LanPrefix_text']").val(Prefix);
+            var face=$(":input[name='LanInterface_select']").val();
+            //$(":input[name='LanInterface_select']").val(DelegatedWanConnection);
+            var LanPrefix=$("select[name='LanPrefix_select']").val();
+            if(LanPrefix=="Static")
+			{
+            	   $("#pre_addr1").show();
+            	   $("#wan_iface").hide();
+            }
+			else if(LanPrefix=="WANDelegated")
+			{
+            	   $("#pre_addr1").hide();
+                   $("#wan_iface").show();
+                 var selectedInt = DelegatedWanConnection
+                $.map(if_conns,function(conn,i){
+                    $.map(conn.ipConns,function(ipConn,j){
+                        if((ipConn.X_ASB_COM_IPv6Enabled !== 0)||(ipConn.X_CT_COM_ServiceList.search("INTERNET") !==-1)) {
+                          if (ipv6_LanCfg.IPv6DNSWANConnection !== ipConn.X_ASB_COM_IfName) {
+                            selectedInt = ipConn.X_ASB_COM_IfName
+                          }
+                        }
+                    })
+
+                    $.map(conn.pppConns,function(pppConn,j){
+                      if((pppConn.X_ASB_COM_IPv6Enabled !== 0)||(pppConn.ConnectionType !== "PPPoE_Bridged")) {
+                        if (ipv6_LanCfg.IPv6DNSWANConnection !== pppConn.X_ASB_COM_IfName) {
+                        selectedInt = pppConn.X_ASB_COM_IfName
+                        }
+                      }
+                    })
+                }),
+                function(ifi,i){
+                    return $(":input[name='LanInterface_select']").val(selectedInt);
+                }
+                }
+            
+            $("select[name='LanPrefix_select']").change(function(){
+	              ((this.value=="Static")?$.fn.show:$.fn.hide).call($("#pre_addr1"));
+	              ((this.value=="WANDelegated")?$.fn.show:$.fn.hide).call($("#wan_iface"));
+	            
+	          })             
+        }
+
+        with(ipv6_Server)
+		{
+             $("input[name='LanDHCPv6_checkbox']").set_checked(Enable);
+             $("input[name='LanStartAddress_text']").val(MinAddress);//2013-05-08
+             $("input[name='LanEndAddress_text']").val(MaxAddress);//2013-05-08
+        }
+
+        with(slacc_Cfg)
+		{
+            $(":input[name='slaccEnable']").set_checked(Enable);
+            $("input[name='LanMaxRA_text']").val(MaxRtrAdvInterval);
+            $("input[name='LanMinRA_text']").val(MinRtrAdvInterval);
+            $("input[name='LanAddressInfo_checkbox']").set_checked(AdvManagedFlag);
+            $("input[name='LanOtherInfo_checkbox']").set_checked(AdvOtherConfigFlag);
+        
+       }
+       <% if defined("@ipv6_lan_readable") then%>
+            $("#dns_addr1").hide();
+            $("#dns_addr2").hide();
+            $("#wan_iface_dns").hide();
+            $("#pre_addr1").hide();
+       <% end %>                 
+       $('form').encrypt_submit(function() {
+
+            var pool_Min=$("input[name='LanStartAddress_text']").val();
+            var pool_Max=$("input[name='LanEndAddress_text']").val();
+            var ipv6_prefix = $("input[name='LanPrefix_text']").val();
+            var ra_max = $("input[name='LanMaxRA_text']").val();
+            var ra_min = $("input[name='LanMinRA_text']").val();
+
+            var LanPrefix=$("select[name='LanPrefix_select']").val();
+
+            var LanDnsSelect=$("select[name='LanDNS_select']").val();
+            var LanPriDns=$("input[name='LanPri_DNS_text']").val();
+            var LanSecDns=$("input[name='LanSec_DNS_text']").val();
+            
+            //Prefix Deligator Validations
+            var isPrefixDeli=$("input[name='prefix_deli_en']").is(":checked");
+            var prefixDeliSelect=$("select[name='prefixDeligator_select']").val();
+            var delegator_prefix=$("input[name='prefix_deliPrefix']").val();
+            var delegator_len=$("input[name='prefix_deli_len']").val();
+            var selected_WANprefix=$("select[name='prefixDeligatorInt_select']").val();
+
+            if(isPrefixDeli){
+                if(prefixDeliSelect == "Static"){
+                if(delegator_prefix && (delegator_prefix==null ||delegator_prefix=="")){
+                            alert("<%t('The prefix cannot be null')%>");
+                            return false;
+                    }
+                    if(delegator_prefix && ipv6_prefix){
+                        var delePrefix = delegator_prefix.split("::/")[0];
+                        var ipv6pre = ipv6_prefix.split("::/")[0];
+                        if(delePrefix == ipv6pre){
+                        alert("<%t('The prefix already present')%>");
+                        return false;    
+                        }
+                    }
+                    var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;
+
+                    var isSitePrefixMatch=false;
+                    $.map(if_conns,function(conn,i){
+                        $.map(conn.ipConns,function(ipConn,j){
+                            if((ipConn.X_ASB_COM_IPv6Enabled !== 0)||(ipConn.X_CT_COM_ServiceList.search("INTERNET") !==-1)) {
+                                var pv6Add = ipConn.X_CT_COM_IPv6Prefix;
+                                if(pv6Add)
+                                {
+                                pv6Add = pv6Add.split("::/")[0];
+                                var delePrefix = delegator_prefix.split("::/")[0];
+                                if(pv6Add == delePrefix){
+                                    isSitePrefixMatch=true;
+                                    }
+                                }
+                            }
+                        })
+
+                    $.map(conn.pppConns,function(pppConn,j){
+                      if((pppConn.X_ASB_COM_IPv6Enabled !== 0)||(pppConn.ConnectionType !== "PPPoE_Bridged")) {
+                                var pv6Add = pppConn.X_CT_COM_IPv6Prefix;
+                                if(pv6Add)
+                                {
+                                pv6Add = pv6Add.split("::/")[0];
+                                var delePrefix = delegator_prefix.split("::/")[0];
+                                if(pv6Add == delePrefix){
+                                    isSitePrefixMatch=true;
+                                }
+                                }
+                      }
+                    })
+                  })
+                 if(isSitePrefixMatch){
+                    alert("<%t('The prefix already present')%>");
+                    evt.preventDefault();
+                    return false;
+                 }
+
+                    var delegatorPrefix = delegator_prefix.split("::/");   
+                    delegatorPrefix = delegatorPrefix[1];
+                    if(delegatorPrefix == 64){
+                        alert("<%t('WAN prefix should be between 1 to 63, eg: 2001:1:1:1::/63')%>");
+                        return false;
+                    }
+
+                    var maxPrefixAddLength = 64 - delegatorPrefix;
+					/* Fix handling the invalid ipv6 prefix */ 
+					if(isNaN(maxPrefixAddLength)) {
+						alert("<%t('illegal format of ipv6 prefix, it should be 2001:1:1:1::/64')%>")
+						return false;
+					}
+                    if(delegator_len > maxPrefixAddLength){
+                        alert("<%t("Static prefix and prefix delegator add length in total shouldn't exceed 64")%>");
+                        return false;
+                    }
+
+                    if(!checkipv6Addresss(delegator_prefix).valid || !check_ipv6_prefix(delegator_prefix))
+                        {
+                            alert("<%t('illegal format of ipv6 prefix delegator, it should be 2001:1:1:1::/63')%>");
+                            return false;
+                        }
+                  }
+
+                  if(prefixDeliSelect == "WANDelegated"){
+
+                      if(selected_WANprefix == "" || selected_WANprefix == null || selected_WANprefix === undefined ){
+                        alert("<%t('Prefix delegator WAN interface cannot be empty. Please select ipv6 WAN.')%>");
+                        return false;
+                      }
+                  }
+                  if(delegator_len==null || delegator_len=="")
+                    {
+                       alert("<%t('Prefix delegator add length cannot be null')%>");
+                       return false;
+                    }
+
+                  if(delegator_len == 0){
+                    alert("<%t('Prefix delegator add length should be between 1 to 63')%>");
+                    return false;
+                  }
+                  if(delegator_len && ((parseInt(delegator_len) >= 64) || (parseInt(delegator_len) < 1)))
+                  {
+                      alert("<%t('Prefix delegator add length should be between 1 to 63')%>");
+                      return false;
+                  }
+              }
+
+              if((oldPrefixEnable == isPrefixDeli) && (oldPrefixLength == delegator_len) && (oldIntType == prefixDeliSelect)                   &&(oldStaticData == delegator_prefix)){
+                $("#prefixDeligator_select").prop("disabled",true);
+                $("#prefix_deli_en").prop("disabled",true);
+                $("#prefix_deliPrefix").prop("disabled",true);
+                $("#prefix_deli_len").prop("disabled",true);
+                $("#prefixDeligatorInt_select").prop("disabled",true);
+              }
+
+
+              if(LanPrefix == "Static"){
+                var ipv6_delegator = ipv6_prefix.split("::/");
+                ipv6_delegator = ipv6_delegator[1];
+                if(!((/^[0-9]*$/).test(ipv6_delegator)) || !check_ipv6_prefix(ipv6_prefix))
+                {
+                    alert("<%t('illegal format of ipv6 prefix, it should be 2001:1:1:1::/64')%>")
+                    return false;
+                }
+            }
+            if(LanDnsSelect == "Static"){   
+                if (!$.trim(LanPriDns) || ($.trim(LanPriDns) && !checkipv6ForDNS(LanPriDns))){   //128bit check
+                    alert("<%t('Please input valid preferred dns')%>");
+                    return false;
+                }
+                if ($.trim(LanSecDns) && !checkipv6ForDNS(LanSecDns)){
+                    alert("<%t('Please input valid alternative dns')%>");
+                    return false;
+                }
+            }
+
+            if(pool_Min && !CheckIpv6For64bit(pool_Min)){
+                alert("<%t('wrong IP address')%>(IPv6)");
+                return false;
+       	    }
+            if(pool_Max && !CheckIpv6For64bit(pool_Max)){
+                alert("<%t('wrong IP address')%>(IPv6)");
+                return false;
+            }
+            if(ipv6AddrCompare(transitV6Ip(pool_Min),transitV6Ip(pool_Max)) == 1){
+                alert("<%t('end IP address must be greater than start IP address')%>");
+                return false;
+            }
+            if(ipv6AddrCompare(transitV6Ip("0:0:0:2"),transitV6Ip(pool_Min)) == 1){
+                alert("<%t('start IP address must be greater than 0:0:0:1')%>");
+                return false;
+            }			
+            if(ra_max<4 || ra_max>1800){
+                alert("<%t('Maximum interval for periodic RA messages must between 4 and 1800')%>")
+                return false;
+            }else if(ra_min<4 || ra_min>1800)
+            {
+                alert("<%t('Minimum interval for periodic RA messages must between 4 and 1800')%>")
+                return false;
+            }
+			
+            if(ra_min > 0.75*ra_max)
+            {
+                alert("<%t('For RA messages value, Minimum should be less then 3/4 of Maximum')%>")
+		return false;
+            }
+			
+            disable_all_buttons();
+            var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;			
+            evt.preventDefault();
+        })        
+   })   
+
+</script>
+<body>
+<div class="container">
+  <h3 class="x_header"><strong><% t('IPV6 LAN Host Configuration')%></strong></h3>
+  <form method="post" action="?config">
+    <div class="row">
+      <div class="col-xs-4 x_form_caption">
+        <%t('DNS Server')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <select name="LanDNS_select" id="LanDNS_select" class="form-control x-input-sm">
+            <option value='WANConnection'><%T("WANConnection")%></option>
+            <option value='Static'><%T("Static")%></option>
+            <option value='HGWProxy'><%T("HGWProxy")%></option>                  
+           </select>
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="dns_addr1" style="display:none">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Preferred DNS')%> 
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="text"  class="form-control x-input-sm" name="LanPri_DNS_text" id="LanPri_DNS_text">
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="dns_addr2" style="display:none">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Alternative DNS')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="text"  class="form-control x-input-sm" name="LanSec_DNS_text" id="LanSec_DNS_text">
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="wan_iface_dns">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Interface')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right" class="form-control x-input-sm">
+          <select name='LanDNS_Interface_select' id='LanDNS_Interface_select' class="form-control x-input-sm" ></select>
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="wan_iface_dns">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Prefix Config')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <select name="LanPrefix_select" id="LanPrefix_select" size="1" class="form-control x-input-sm" >
+              <option value='WANDelegated'><%T("WANConnection")%></option>
+              <option value='Static'><%T("Static")%></option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="pre_addr1" style="display:none" >
+      <div class="col-xs-4 x_form_caption">
+        <%t('prefix')%> 
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="text" class="form-control x-input-sm" name="LanPrefix_text" id="LanPrefix_text">
+        </div>
+      </div>
+    </div> 
+    <div class="row"  id="wan_iface">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Interface')%> 
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <select name='LanInterface_select' id='LanInterface_select' class="form-control x-input-sm" >
+          </select>
+        </div>
+      </div>
+     </div>  
+    
+     <div class="row" id="prefix_deligator_enable">
+        <div class="col-xs-4 x_form_caption">
+            <%t('Prefix Delegation')%>
+        </div>
+        <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="checkbox" class="form-check-input" data-toggle="toggle" name="prefix_deli_en" id="prefix_deli_en" style="margin-top: 14px;">
+        </div>
+      </div>
+    </div>
+    <div id="is_prefixDeligator">
+    <div class="row"  id="prefix_deligator_interface">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Prefix Delegation Config')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <select name="prefixDeligator_select" id="prefixDeligator_select" size="1" class="form-control x-input-sm" >
+              <option value='WANDelegated'><%T("WANConnection")%></option>
+              <option value='Static'><%T("Static")%></option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="row"  id="prefixDeli_interface">
+      <div class="col-xs-4 x_form_caption">
+        <%t('Prefix Delegation Interface')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <select name='prefixDeligatorInt_select' id='prefixDeligatorInt_select' class="form-control x-input-sm" >
+          </select>
+        </div>
+      </div>
+     </div>
+    <div class="row" id="prefix_deligatorPrefix">
+        <div class="col-xs-4 x_form_caption">
+            <%t('Prefix')%>
+        </div>
+        <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="text" class="form-control x-input-sm" name="prefix_deliPrefix" id="prefix_deliPrefix">
+        </div>
+      </div>
+    </div>
+
+    <div class="row" id="prefix_deligator_length">
+        <div class="col-xs-4 x_form_caption">
+            <%t('Prefix Delegation Add Length')%>
+        </div>
+        <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type="text" class="form-control x-input-sm"   name="prefix_deli_len" id="prefix_deli_len">
+          <%T("Note: add length n indicate we would assign prefix to (2^n - 1) subrouters, if add length is 3, could assign 7 prefixes, if add length is 4, could assign 15 prefixes.")%>
+        </div>
+      </div>
+   </div>
+    </div>
+    <br/>
+	  <h3 class="x_header">
+	  <strong><%t('DHCPv6 Server Pool')%></strong>
+    </h3>
+    <div class="row">
+      <div class="col-xs-4 x_form_caption">
+        <%t('DHCP Start IP Address')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type='text' class="form-control x-input-sm" name='LanStartAddress_text' id='LanStartAddress_text'/>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-xs-4 x_form_caption">
+        <%t('DHCP End IP Address')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type='text' class="form-control x-input-sm" name='LanEndAddress_text' id='LanEndAddress_text'/>
+        </div>
+      </div>
+    </div>       
+    </br>
+    </br>     	 
+    <div class="row" >
+      <div class="col-xs-4 x_form_caption">
+        <%t('Whether the address info through DHCP')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right x_form_caption">
+          <input name="LanAddressInfo_checkbox" id="LanAddressInfo_checkbox" class="form-check-input" type="checkbox" data-toggle="toggle" />
+        </div>
+      </div>
+    </div>
+    <div class="row" >
+      <div class="col-xs-4 x_form_caption">
+        <%t('Whether other info obtained through DHCP')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right x_form_caption">
+          <input name="LanOtherInfo_checkbox" id="LanOtherInfo_checkbox" class="form-check-input" type="checkbox" data-toggle="toggle" />
+        </div>
+      </div>
+    </div>
+    <div class="row" >
+      <div class="col-xs-4 x_form_caption">
+        <%t('Maximum interval for periodic RA messages')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type='text' name='LanMaxRA_text' id='LanMaxRA_text' oninput="value=value.replace(/[^\d]/g,'')" class="form-control x-input-sm"/><%t('seconds')%>
+        </div>
+      </div>
+    </div>
+    <div class="row" >
+      <div class="col-xs-4 x_form_caption">
+        <%t('Minimum interval for periodic RA messages')%>
+      </div>
+      <div class="col-xs-8">
+        <div class="support-pull-right">
+          <input type='text' name='LanMinRA_text' id='LanMinRA_text' oninput="value=value.replace(/[^\d]/g,'')" class="form-control x-input-sm"/><%t('seconds')%>
+        </div>
+      </div>
+    </div>                	            
+
+    </br>
+    </br>
+    <div class="row text-center">
+       <input class="buttonX" type='submit' id="Apply_button" value='<%t('Save/Apply')%>'>
+    </div>
+  </form>
+</div>
+<%include ( "html_glb/footer.html" )%>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Binaries and firmware dumps
+*.bin
+*.bin.gz
+*.sqfs
+*.img
+*.dump
+*.core.tgz
+*.tgz
+
+# Python cache & venv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Temporary / OS files
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+*.swp
+
+# Sensitive local configurations (never commit passwords, tokens or live dumps)
+CREDENTIALS.md
+*credentials*
+*secret*
+*password*
+*.pem
+*.key
+config_encryption.cfg

@@ -1,0 +1,1810 @@
+<html>
+<%include ( "html_glb/head.html" )%>
+<script type="text/javascript" src="/js_glb/Iptrim.js"></script>
+<script type="/js_glb/string_extend.js"></script>
+
+<style type="text/css">
+.x_w1 {
+    width: 530px;
+}
+.x_line {
+    width: 760px;
+    height: 45px;
+    background-image: url(../img_glb/hline.png)
+}
+</style>
+
+<script>
+    var queue_management = { <% queue_management %> };
+    var lan_ether= <% lan_ether %> ;
+    var DHCPConditionalServingPool =  [<% DHCPConditionalServingPool %>];
+    var ipv4_config={ <% ipv4_config %> };
+    var is_Bridge_mode = {<% is_Bridge_mode %> };
+    var ipv4_intf={ <% ipv4_intf %> };
+    var ipv4_route=[ <% ipv4_route %> ];
+    var bind_mac=[ <% bind_mac %> ];
+    var static_nat=[ <% static_nat %> ];
+    var oldFirstDns = "";
+    var oldSecondDns = "";
+    var oldThirdDns = "";
+    var oldDhcpEthStart="";
+    var oldDhcpEthEnd="";
+    <% opid = ri("OperatorID") ;%>
+    var operatorid="<%opid%>";
+    var board_type = <%board_type%>;
+    var lan_num = ipv4_route.length;
+    var lanPortNum= { <% lan_port_num %> };
+    var isDomainPresent = <% isDomainPresent %>;
+    var device_cfg = [<% device_cfg %>];
+    var list_XG_lan_port_number = <% list_XG_lan_port_number %>;
+    var total_lan_port_num=<% total_lan_port_num %>;
+    var isPort1_10g = false;
+    var isPort2_10g = false;
+    var isPort3_10g = false;
+    var isPort4_10g = false;
+    var isPort5_10g = false;
+    var isDhcpEnable= false;
+
+    function DoDelete(obj)
+    {
+        var postdata = obj.href;
+        var temp = postdata.indexOf("?act=del");
+        var temp2 = "?act=del&";
+        postdata = postdata.slice(temp+temp2.length);            
+        var postURL = window.location.pathname+"?act=del";
+        $.ajax({
+            url: postURL,
+            type: 'POST',
+            data: postdata,
+        })
+        .done(function(data){
+            var result= "";
+            result = data;
+            if((result.indexOf("<script>alert")!=-1) &&  
+            (result.indexOf("<html>")==-1))  
+            {
+                document.write(result);
+            }else if(((result.indexOf("error")!=-1) 
+                ||  (result.indexOf("Failed")!=-1)
+                ||  (result.indexOf("can not")!=-1))
+                && (result.indexOf("<html>")==-1))
+            {
+                alert(data);               
+            }         
+            window.location.reload();
+        })		   
+        var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;			
+        evt.preventDefault();		        
+    }		
+/*disable elements*/
+    function disable_lanipv4()
+    {
+        return;
+        <% if "PHRA"!=opid then%>
+        $("input[name='allbridge']").prop("disabled",true);
+        for(var i=1;i<lan_num+1;i++)
+            $("select[name='unimode"+i+"']").prop("disabled",true);
+
+        $("#save1").prop("disabled",true);
+        $("input[name='ethIpAddress']").prop("disabled",true);
+        $("input[name='ethSubnetMask']").prop("disabled",true);
+        $("input[name='dhcpEnable']").prop("disabled",true);
+        $("input[name='dhcpEthStart']").prop("disabled",true);
+        $("input[name='dhcpRelayEnable']").prop("disabled",true);
+        $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+        $("input[name='dhcpEthEnd']").prop("disabled",true);
+        $("input[name='dhcpLeasedTime']").prop("disabled",true);
+        $("input[name='firstDns']").prop("disabled",true);
+        $("input[name='secondDns']").prop("disabled",true);
+        $("input[name='thirdDns']").prop("disabled",true);
+        $("#save2").prop("disabled",true);
+        $("input[name='bindmac']").prop("disabled",true);
+        $("input[name='bindip']").prop("disabled",true);
+        $("input[name='bindip']").prop("disabled",true);
+        $("#add").prop("disabled",true);
+        <% end %>
+    }
+    
+    function enable_port_mode()
+    {
+        $("input[name='allbridge']").prop("disabled",false);
+
+        for(var i=1;i<lan_num+1;i++)
+            $("select[name='unimode"+i+"']").prop("disabled",false);
+        $("#save1").prop("disabled",false);
+    }
+    
+    function disable_port_mode()
+    {
+        return;
+
+        for(var i=1;i<lan_num+1;i++)
+            $("select[name='unimode"+i+"']").prop("disabled",true);
+        $("#save1").prop("disabled",true);
+    }
+    
+    function enable_port_mode_viet()
+    {
+        $("input[name='allbridge']").prop("disabled",true);
+        for(var i=1;i<lan_num+1;i++)
+            $("select[name='unimode"+i+"']").prop("disabled",false);
+        $("#save1").prop("disabled",false);
+    }
+    function enable_ippool()
+    {
+        $("input[name='ethIpAddress']").prop("disabled",false);
+        $("input[name='ethSubnetMask']").prop("disabled",false);
+        $("input[name='dhcpEnable']").prop("disabled",false);
+        $("input[name='dhcpRelayEnable']").prop("disabled",false);
+        $("input[name='dhcpRelayIpAddress']").prop("disabled",false);
+        $("input[name='dhcpEthStart']").prop("disabled",false);
+        $("input[name='dhcpEthEnd']").prop("disabled",false);
+        $("input[name='dhcpLeasedTime']").prop("disabled",false);
+        $("input[name='firstDns']").prop("disabled",false);
+        $("input[name='secondDns']").prop("disabled",false);
+        $("input[name='thirdDns']").prop("disabled",false);
+        $("#save2").prop("disabled",false);
+    }
+
+    function enable_static_dhcp_entry()
+    {
+        $("input[name='bindmac']").prop("disabled",false);
+        $("input[name='bindip']").prop("disabled",false);
+        $("input[name='bindip']").prop("disabled",false);
+        $("#add").prop("disabled",false);
+    }
+    
+    function enable_ipaddress_only()
+    {
+        $("input[name='ethIpAddress']").prop("disabled",false);
+        $("input[name='ethSubnetMask']").prop("disabled",false);
+        $("input[name='dhcpEnable']").prop("disabled",true);
+        $("input[name='dhcpRelayEnable']").prop("disabled",true);
+        $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+        $("input[name='dhcpEthStart']").prop("disabled",true);
+        $("input[name='dhcpEthEnd']").prop("disabled",true);
+        $("input[name='dhcpLeasedTime']").prop("disabled",true);
+        $("input[name='firstDns']").prop("disabled",true);
+        $("input[name='secondDns']").prop("disabled",true);
+        $("input[name='thirdDns']").prop("disabled",true);
+        $("#save2").prop("disabled",false);
+    }
+
+    function disableLanDns(){
+        return;
+        $("input[name='secondDns']").prop("disabled",true);
+    }
+    
+    function DisableInputElements()
+    {
+        <%if opid == "CHRA" then%>
+            disable_lanipv4();
+        <% end %>
+			
+		<% if defined("admin_can_edit") then%>
+		<% else %>
+        <%if !ctcadmin then%>
+			<%if opid != "EGDU" then%>
+				disable_lanipv4();
+			<% end %>
+        <% if opid=="ENTB" then%>
+            enable_port_mode();
+            enable_ipaddress_only();
+        <% else if opid=="SAIB" then%> 
+            enable_port_mode();
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <% else if opid=="MXXV"  then%> 
+            enable_port_mode();
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <% else if opid=="LAOS"  then%> 
+            enable_port_mode();
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <% else if opid=="VFSP"  then%> 
+            enable_port_mode();
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <% else if opid=="VIET"  then%> 
+            enable_port_mode_viet();
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <%  else if opid == "AXTE" then %>
+            $(":input").prop("disabled",true);
+        <%  else if opid == "STXX" then %>
+            enable_port_mode();
+            enable_ippool();
+        <%  else if opid == "STSO" then %>
+            enable_port_mode();
+            enable_ippool();
+        <% else if opid=="BRZL" then %>  
+            $("input[name='ethIpAddress']").prop("disabled",false);
+            $("input[name='ethSubnetMask']").prop("disabled",false);
+            $("input[name='dhcpEthStart']").prop("disabled",false);
+            $("input[name='dhcpEthEnd']").prop("disabled",false);
+            $("#save2").prop("disabled",false);
+            enable_static_dhcp_entry();
+        <% else if opid=="TLPY" then %>  
+            $("input[name='ethIpAddress']").prop("disabled",false);
+            $("input[name='ethSubnetMask']").prop("disabled",false);
+            $("input[name='dhcpEthStart']").prop("disabled",false);
+            $("input[name='dhcpEthEnd']").prop("disabled",false);
+            $("#save2").prop("disabled",false);
+            enable_static_dhcp_entry();	
+        <% else if defined("enable_ip_mask") then %>
+            $("input[name='ethIpAddress']").prop("disabled",false);
+            $("input[name='ethSubnetMask']").prop("disabled",false);
+            $("#save2").prop("disabled",false);
+        <% else if defined("enable_ippool") then %>
+            enable_ippool();
+            enable_static_dhcp_entry();
+        <%end%>
+        <%end%>		
+        <%end%>        
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+        <%end%>
+            <% if defined("@enable_ippool") then%>
+            enable_ippool();
+            <% end %>
+            <% if defined("@enable_static_dhcp") then%>
+            enable_static_dhcp_entry();
+            <% end %>
+            <% if defined("enable_user_lanipv4") then%>
+            enable_port_mode();
+            enable_ippool();
+            enable_static_dhcp_entry();
+            <% end %>
+            <% if defined("disalbe_lan_dns") then%>
+            disableLanDns();
+            <% end %>
+        <%end%>
+        <% if defined("disable_port_mode") then%>
+        disable_port_mode();
+        <% end %>
+    }
+/*end*/    
+    
+/*form port mode*/    
+    function PortModeShow()
+    {
+        with(ipv4_route)
+        {
+            for (var i = 1; i < lan_num+1; i++)
+            {
+                $("select[name='unimode" + i + "']").val(ipv4_route[i - 1].isTr069Domain);
+            }
+                        
+            $("input[name='allbridge']").change(function ()
+            {
+                if ($(this).is(":checked"))
+                {
+                    for (var i = 1; i < lan_num+1; i++)
+                    {
+                        $("select[name='unimode" + i + "']").val("0").change();
+                        $("select[name='unimode" + i + "']").prop("disabled", true);
+                    }
+                }
+                else
+                {
+                    for (var i = 1; i < lan_num+1; i++)
+                    {
+                        $("select[name='unimode" + i + "']").val(ipv4_route[i - 1].isTr069Domain);
+                        $("select[name='unimode" + i + "']").prop("disabled", false);
+                    }
+                }
+            })
+        }
+    }
+    function CheckUniPOrtModeChanged()
+    {
+        with(ipv4_route)
+        {
+            for (var i = 1; i < lan_num+1; i++)
+            {
+                var UniPortMode = $("select[name='unimode" + i + "']").val();
+                if(UniPortMode != ipv4_route[i-1].isTr069Domain)
+                return true;
+            }
+        }
+        return false;
+    }
+    function CheckUniPortRoutingRulesPresence()
+    {
+        for (var idx = 1; idx < lan_num+1; idx++)
+        {
+            var breakOut = false;
+            var flagGRE = false;
+            var UniPortMode = $("select[name='unimode" + idx + "']").val();
+            if( (UniPortMode == 0) && (ipv4_route[idx-1].isTr069Domain == 1) )
+            {
+                with(queue_management)
+                {
+                    $.each(Classification, function(i, o)
+                    {
+                        var classInterface_idx = get_lan_interface_idx(o.ClassInterface);
+
+                        if(classInterface_idx == idx)
+                        {
+                            if ( (o.X_ALU_COM_ClassPolicy != -1) || (o.X_ALU_COM_ClassClassifier != -1) )
+                            {
+                                flagGRE = true;
+                            }
+                            breakOut = true;
+                        }
+                    })
+                }
+                if (breakOut == true)
+                {
+                    if( flagGRE == true) 
+                    {
+                        return 2;
+                    }
+                    return 1;
+                }
+            }
+        }
+        return -1;
+    }
+
+    function get_lan_interface_idx(classInterface)
+    {
+        var split_array = classInterface.split(".");
+        if(split_array[3] == "LANEthernetInterfaceConfig")
+        {
+            return split_array[4];
+        }
+        return -1;
+    }
+
+    function CheckIsBridgeMode()
+    {
+        with(ipv4_route)
+        {
+            for (var i = 1; i < lan_num+1; i++)
+            {
+                var UniPortMode = $("select[name='unimode" + i + "']").val();
+                if((i==1) && (is_Bridge_mode.Lan1 == 1)&&(UniPortMode==0))
+                return true;
+		if((i==2) && (is_Bridge_mode.Lan2 == 1)&&(UniPortMode==0))
+                return true;
+		if((i==3) && (is_Bridge_mode.Lan3 == 1)&&(UniPortMode==0))
+                return true;
+		if((i==4) && (is_Bridge_mode.Lan4 == 1)&&(UniPortMode==0))
+                return true;
+		if((i==5) && (is_Bridge_mode.Lan5 == 1)&&(UniPortMode==0))
+                return true;
+            }
+        }
+        return false;
+    }
+
+    
+    function CheckAllPortsToBridgeMode()
+    {
+        var AllChangePortMode = $("input[name='allbridge']").is(":checked");
+        if(AllChangePortMode)
+        {
+            $("input[name='allstr']").prop("disabled", false);
+            return true;
+        }
+        else
+        {
+            $("input[name='allstr']").prop("disabled", true);
+            return false;
+        }
+    }
+    function CheckAllPortsEnable(){
+       
+            $.map(lan_ether, function (e, i){
+               
+               var j=i+1;
+                console.log("e.Enbale "+j+" is :"+e.Enable);
+                if(e.Enable){
+                    $("input[name='ifEnable"+j+"']").prop("checked", true);
+                }
+        
+            })
+        
+    }
+    function IfAllPortsEnable(){
+       $("input[name='ifEnable1']").prop("disabled",true);
+       $("input[name='ifEnable2']").prop("disabled",true);
+       $("input[name='ifEnable3']").prop("disabled",true);
+       $("input[name='ifEnable4']").prop("disabled",true);
+       $("input[name='ifEnable5']").prop("disabled",true);
+    }
+/*end*/
+
+/*lan dhcp form function*/    
+    function LanDhcpShow()
+    {
+        with (ipv4_config)
+        {
+            oldFirstDns = DNSServers.split(",")[0];
+            oldSecondDns = DNSServers.split(",")[1];
+            oldThirdDns = DNSServers.split(",")[2];
+            oldDhcpEthStart=MinAddress;
+            oldDhcpEthEnd=MaxAddress;
+            isDhcpEnable=DHCPServerEnable;
+            $("input[name='dhcpEthStart']").val(MinAddress);
+            $("input[name='dhcpEthEnd']").val(MaxAddress);
+            $("input[name='dhcpEnable']").set_checked(DHCPServerEnable);
+            $("input[name='dhcpRelayEnable']").set_checked(X_ALU_COM_DHCPRelayEnable);
+            $("input[name='dhcpRelayIpAddress']").val(X_ALU_COM_DHCPRelayServerIPAddress);
+            $("input[name='dhcpLeasedTime']").val(DHCPLeaseTime / 60);
+            if (oldFirstDns != "0.0.0.0")
+            {
+                $("input[name='firstDns']").val(oldFirstDns);
+            }else{
+                oldFirstDns = "";
+            }
+            if (oldSecondDns != "0.0.0.0")
+            {
+                $("input[name='secondDns']").val(oldSecondDns);
+            }else{
+                oldSecondDns= "";
+            }
+            if (oldThirdDns != "0.0.0.0")
+            {
+                $("input[name='thirdDns']").val(oldThirdDns);
+            }else{
+                oldThirdDns = "";
+            }
+        }
+
+        with (ipv4_intf)
+        {
+            var checkip = $.trim(IPInterfaceIPAddress);
+            $("input[name='ethIpAddress']").val(IPInterfaceIPAddress);
+            $("input[name='ethSubnetMask']").val(IPInterfaceSubnetMask);
+        }
+    }
+    
+    function StaticDhcpEntryShow()
+    {
+        var bind = $("#bind_list");
+        $.map(bind_mac, function (e, i)
+        {
+            if (e.Chaddr != "")
+            {
+                bind.append(
+                    $("<tr></tr>")
+                    .append($("<td>" + e.Chaddr + "</td>"))
+                    .append($("<td>" + e.Yiaddr + "</td>"))
+                    .append($("<td><a href='?act=del&oid=" + e._oid + "' onclick='DoDelete(this);return false;'><%T("Delete")%></a></td>")));
+            }
+        })
+    }
+    
+    function STBDhcpShow()
+    {
+        $.each(DHCPConditionalServingPool,function(i,e)
+        {
+            $("input[name='stbDhcpEnable']").set_checked(e.Enable);
+            $("input[name='stbDhcpEthStart']").val(e.MinAddress);
+            $("input[name='stbDhcpEthEnd']").val(e.MaxAddress);
+            $.each(e.dhcpoption,function(j,p)
+            {
+                $("input[name='stbDhcpHostName']").val(p.Value);
+            })
+        })
+    }
+
+    function StaticNatShow()
+    {
+        var nats = $("#staticnat_list");
+        $.map(static_nat,function (e,i){
+            if(e.sIp != "")
+            {
+                nats.append(
+                    $("<tr></tr>")
+                    .append($("<td>" + e.sIp + "</td>"))
+                    .append($("<td>" + e.wanIfname + "</td>"))
+                    .append($("<td>" + e.protocol + "</td>"))
+                    .append($("<td>" + e.portRange + "</td>")));
+            }
+           
+        })
+    }
+
+    function CheckLanIpaddressValid()
+    {
+        var ifip = $("input[name='ethIpAddress']").val();
+        var dhcpsip = $("input[name='dhcpEthStart']").val();
+        var dhcpeip = $("input[name='dhcpEthEnd']").val();
+
+        var ifip3 = parseInt(ifip.split(".")[3]);
+
+        var isRelayEnabled=$("input[name='dhcpRelayEnable']").is(":checked");
+
+        if (!isValidIpAddress(ifip))
+        {
+            //Only for  STSO
+            if(isRelayEnabled && operatorid == "STSO")
+            {
+               alert("<%t('Enter a valid Relay Agent IPv4 Address')%>");
+               return false;
+            }
+            else{
+                 alert("<%t('Error Lan IP Address')%>");
+                 return false;
+            }
+        }
+
+        <% if !defined("@use_2x_network") then %>
+        if (!ValidSpecialIp(ifip))
+        {
+            alert("<%t('Network 192.168.2.x is reserved and cannot be used, please select a different one')%>");
+            $("input[name='ethIpAddress']").focus();
+            return false;
+        }
+        <% end %>
+        <% if opid == "VFSP" then %>
+        if(ifip3 == 251 || ifip3 == 252 || ifip3 == 253)
+        {
+            alert("<%t('Lan IP Address should be xxx.xxx.xxx.1~250 or xxx.xxx.xxx.254')%>");
+            $("input[name='ethIpAddress']").focus();
+            return false;
+        }
+        <% end %>
+        <% if defined("@hide_ssid_sltm") then %>
+        if (!ValidSLTMIp(ifip))
+        {
+            alert("<%t('Invalid IPv4 Address, network 192.168.182.x and 192.168.192.x is reserved')%>");
+            $("input[name='ethIpAddress']").focus();
+            return false;
+        }
+        else if(!ValidSLTMIp(dhcpsip))
+        {
+            alert("<%t('Invalid DHCP Start IP Address, network 192.168.182.x and 192.168.192.x is reserved')%>");
+            $("input[name='dhcpEthStart']").focus();
+            return false;
+        }
+        else if(!ValidSLTMIp(dhcpeip))
+        {
+            alert("<%t('Invalid DHCP End IP Address, network 192.168.182.x and 192.168.192.x is reserved')%>");
+            $("input[name='dhcpEthEnd']").focus();
+            return false;
+        }
+        <% end %>
+        if(!Iptrim('ethIpAddress')){
+            alert("<%t('Error Lan IP Address')%>");
+            return false;
+        };
+        if ($.trim(ifip) != ipv4_intf.IPInterfaceIPAddress)
+        {
+            if (bind_mac.length >= 2){
+                alert("<% T('You have changed the LAN ip, Please check the existed binding rules and delete the rules that are out of operation.')%>");
+            }
+            var confirm = window.confirm(("<%t('IP Address changes,need reboot to effect,click OK for {0} restart!')%>").format(board_type));
+            if (confirm == true)
+            {
+                $("input[name='isReboot_1']").val("1");
+            }else{
+                return false;
+            }
+
+        }
+        return true;
+    }
+    
+    function CheckNetMaskValid()
+    {
+        var ifmask = $("input[name='ethSubnetMask']").val();
+        if (!ValidMaskStr(ifmask) || ifmask =="0.0.0.0")
+        {
+            alert("<%t('Error Lan Mask')%>");
+            return false;
+        }
+        return true;
+    }
+    
+    function CheckDhcpAddressValid()
+    {
+        var ifip = $("input[name='ethIpAddress']").val();
+        var dhcpsip = $("input[name='dhcpEthStart']").val();
+        var dhcpeip = $("input[name='dhcpEthEnd']").val();
+
+        var ifip3 = parseInt(ifip.split(".")[3]);
+        var dhcpsip3 = parseInt(dhcpsip.split(".")[3]);
+        var dhcpeip3 = parseInt(dhcpeip.split(".")[3]);
+
+        <% if opid == "VFSP" then %>
+        if (dhcpsip3 < 2 || dhcpsip3 > 250)
+        {
+            $("input[name='dhcpEthStart']").focus();
+            alert("<%t('start address should be xxx.xxx.xxx.2~250')%>");
+            return false;
+        }
+        if (dhcpeip3 < 2 ||dhcpeip3 > 250)
+        {
+            $("input[name='dhcpEthEnd']").focus();
+            alert("<%t('end address should be xxx.xxx.xxx.2~250')%>");
+            return false;
+        }
+
+        if (!ValidIpStr(dhcpsip) || !ValidIpStr(dhcpeip))
+        {
+            alert("<%t('Please input valid IP address!')%>");
+            return false;
+        }
+        <% else %>
+        if (!ValidIpStr(dhcpsip) || dhcpsip3 == 0 || dhcpsip3 == 255)
+        {
+            $("input[name='dhcpEthStart']").focus();
+            alert("<%t('Please input valid ip start address!')%>");
+            return false;
+        }
+        if (!ValidIpStr(dhcpeip) || dhcpeip3 == 0 ||dhcpeip3 == 255)
+        {
+            $("input[name='dhcpEthEnd']").focus();
+            alert("<%t('Please input valid ip end address!')%>");
+            return false;
+        }
+        <% end %>
+
+        // check if lanipaddr for logining web is in range of DHCP IPaddress pool
+        if (ip2int(ifip) >= ip2int(dhcpsip) && ip2int(ifip) <= ip2int(dhcpeip))
+        {
+            alert("<%t('Error Lan IP Address')%>");
+            return false;
+        }
+
+        var ifmask = $("input[name='ethSubnetMask']").val();
+        var ifip = $("input[name='ethIpAddress']").val();
+        var isDhcpRelayEnabled=$("input[name='dhcpRelayEnable']").is(":checked");
+        if(!isDhcpRelayEnabled)
+        {
+        if ((ip2int(dhcpsip) & ip2int(ifmask)) != (ip2int(ifip) & ip2int(ifmask)))
+        {
+            alert("<%t('LAN address and DHCP should be in the same subnet!')%>");
+            return false;
+        }
+        if ((ip2int(dhcpeip) & ip2int(ifmask)) != (ip2int(ifip) & ip2int(ifmask)))
+        {
+            alert("<%t('LAN address and DHCP should be in the same subnet!')%>");
+            return false;
+        }
+        }
+        if ((ip2int(dhcpsip) & ~ip2int(ifmask)) > (ip2int(dhcpeip) & ~ip2int(ifmask)))
+        {
+            alert("<%t('end IP address must be greater than start IP address')%>");
+            return false;
+        }
+        var subnetAdd = ip2int(ifip)&ip2int(ifmask);
+        var broadcastAdd = ~ip2int(ifmask) | subnetAdd;
+        var tmpMask = "255.255.255.255";
+        var dhcpeIpAdd = ip2int(dhcpeip) & ip2int(tmpMask);
+        var dhcpsIpAdd = ip2int(dhcpsip) & ip2int(tmpMask);
+        //Check if dhcpIp is broadcast address
+        if((dhcpeIpAdd == broadcastAdd) || (dhcpsIpAdd == broadcastAdd))
+        {
+            alert("<%t('LAN address and DHCP should be in the same subnet!')%>");
+            return false;
+        }
+        if(!Iptrim('dhcpEthStart'))
+        {
+            alert("<%t('Please input valid ip start address!')%>");
+        }
+        if(!Iptrim('dhcpEthEnd'))
+        {
+            alert("<%t('Please input valid ip end address!')%>");
+        }
+        //check if DHCP conditional pool is within DHCP IPaddress pool
+        <% if defined("check_dhcpCondRange_lanipv4") then %>
+            var dhcpConMinAddressInt = ip2int("255.255.255.255");
+            var dhcpConMaxAddressInt = ip2int("0.0.0.0");
+
+            $.each(DHCPConditionalServingPool,function(i,e)
+            {
+                minAddress = ip2int(e.MinAddress);
+                maxAddress = ip2int(e.MaxAddress);
+                if (dhcpConMinAddressInt > minAddress)
+                {
+                    dhcpConMinAddressInt = minAddress;
+                }
+                if (dhcpConMaxAddressInt < maxAddress)
+                {
+                    dhcpConMaxAddressInt = maxAddress;
+                }
+            })
+
+            dhcpConMinAddressInt = ((dhcpConMinAddressInt & ~ip2int(ifmask)) | subnetAdd) >>> 0
+            dhcpConMaxAddressInt = ((dhcpConMaxAddressInt & ~ip2int(ifmask)) | subnetAdd) >>> 0
+
+            function int2ip (ipInt)
+            {
+                return ( (ipInt>>>24) +'.' + (ipInt>>16 & 255) +'.' + (ipInt>>8 & 255) +'.' + (ipInt & 255) );
+            }
+
+            if (dhcpConMinAddressInt < ip2int(dhcpsip))
+            {
+                alert("<%t('DHCP Start IP Address is larger than DHCP Conditional POOL MinAddress: ')%>" + int2ip(dhcpConMinAddressInt));
+                return false;
+            }
+            if (dhcpConMaxAddressInt > ip2int(dhcpeip))
+            {
+                alert("<%t('DHCP End IP Address is smaller than DHCP Conditional POOL MaxAddress: ')%>" + int2ip(dhcpConMaxAddressInt));
+                return false;
+            }
+        <% end %>
+        return true;
+    }
+        
+    function CheckDhcpLeaseTimeValid()
+    {
+        var dhcpLeased=$("input[name='dhcpLeasedTime']").val();    
+        if (1 == dhcpLeased || dhcpLeased > 129600  || !(/^[0-9]{1,6}$/.test(dhcpLeased)))
+        {
+            alert("<%t('Please input valid dhcp lease time(0 or 2~129600 minutes)!')%>");
+            $("input[name='dhcpLeasedTime']").focus();
+            return false;    
+        }
+        return true;
+    }
+    
+    function CheckDnsValid()
+    {
+        var firstDns = $("input[name='firstDns']").val();
+        var secondDns = $("input[name='secondDns']").val();
+        var thirdDns = $("input[name='thirdDns']").val();
+        if ($.trim(firstDns) && !ValidIpStr(firstDns) && (firstDns != "0.0.0.0"))
+        {
+            alert("<%t('error lan primary dns ip address')%>");
+            return false;
+        }
+        if ($.trim(secondDns) && !ValidIpStr(secondDns) && (secondDns != "0.0.0.0"))
+        {
+            alert("<%t('error lan secondary dns ip address')%>");
+            return false;
+        }
+        if ($.trim(thirdDns) && !ValidIpStr(thirdDns) && (thirdDns != "0.0.0.0"))
+        {
+            alert("<%t('error lan Tertiary dns ip address')%>");
+            return false;
+        }
+            if ($.trim(firstDns) != $.trim(oldFirstDns))
+            {
+                if(!ipv4_config.X_ASB_COM_RebootONTAfterDNSChange)
+                {
+                    var confirm_tur = window.confirm(("<%t('Primary DNS changes, need restart ONT LAN/WIFI interfaces to effect, click OK for {0} restart LAN/WIFI interfaces!')%>").format(board_type));
+                    if (confirm_tur != true)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {    
+                    var confirm = window.confirm(("<%t('Primary DNS changes,need reboot to effect,click OK for {0} restart!')%>").format(board_type));
+                    if (confirm == true)
+                    {
+                        $("input[name='isReboot_1']").val("1");
+                    }
+                    else
+                    {
+                        return false;
+                    }
+               }
+            }
+            else if ($.trim(secondDns) != $.trim(oldSecondDns))
+            {
+                if(!ipv4_config.X_ASB_COM_RebootONTAfterDNSChange)
+                {
+                    var confirm_tur = window.confirm(("<%t('Secondary DNS changes, need restart ONT LAN/WIFI interfaces to effect, click OK for {0} restart LAN/WIFI interfaces!')%>").format(board_type));
+                    if (confirm_tur != true)
+                    {
+                        return false;
+                    }
+                }
+                else
+                {
+                    var confirm = window.confirm(("<%t('Secondary DNS changes,need reboot to effect,click OK for {0} restart!')%>").format(board_type));
+                    if (confirm == true)
+                    {
+                        $("input[name='isReboot_1']").val("1");
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            else if ($.trim(thirdDns) != $.trim(oldThirdDns))
+            {
+                if(!ipv4_config.X_ASB_COM_RebootONTAfterDNSChange)
+                {
+                    var confirm_tur = window.confirm(("<%t('Tertiary DNS changes, need restart ONT LAN/WIFI interfaces to effect, click OK for {0} restart LAN/WIFI interfaces!')%>").format(board_type));
+                    if (confirm_tur != true)
+                    {
+                        return false;
+                    }
+                }
+                else
+                { 
+                    var confirm = window.confirm(("<%t('Tertiary DNS changes,need reboot to effect,click OK for {0} restart!')%>").format(board_type));
+                    if (confirm == true)
+                    {
+                        $("input[name='isReboot_1']").val("1");
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+        return true;
+    }
+    
+    function CheckDhcpAddressValidOfVFSP()
+    {
+        var DhcpHostName = $("input[name='stbDhcpHostName']").val();
+        if(DhcpHostName == "")
+        {
+            alert("<%t('we should input valid DHCP Host Name!')%>");
+            return false;
+        }
+        var dhcpsip = $("input[name='stbDhcpEthStart']").val();
+        var dhcpeip = $("input[name='stbDhcpEthEnd']").val();
+        if (!ValidIpStr(dhcpsip) || !ValidIpStr(dhcpeip))
+        {
+            alert("<%t('Please input valid IP address!')%>");
+            return false;
+        }
+        
+        var ifmask = $("input[name='ethSubnetMask']").val();
+        var ifip = $("input[name='ethIpAddress']").val();
+        if ((ip2int(dhcpsip) & ip2int(ifmask)) != (ip2int(ifip) & ip2int(ifmask)))
+        {
+            alert("<%t('LAN address and DHCP should be in the same subnet!')%>");
+            return false;
+        }
+        if ((ip2int(dhcpeip) & ip2int(ifmask)) != (ip2int(ifip) & ip2int(ifmask)))
+        {
+            alert("<%t('LAN address and DHCP should be in the same subnet!')%>");
+            return false;
+        }
+        if ((ip2int(dhcpsip) & ~ip2int(ifmask)) > (ip2int(dhcpeip) & ~ip2int(ifmask)))
+        {
+            alert("<%t('end IP address must be greater than start IP address')%>");
+            return false;
+        }
+        return true;
+    }
+/*end*/
+
+/*static dhcp entry*/
+    function Ischeckip(ipaddr, mac)
+    {
+        var flag = false;
+        for (var i = 0; i < bind_mac.length; i++ )
+        {
+            if(bind_mac[i].Yiaddr == ipaddr){
+                flag = true;
+                break;
+            }
+        }
+
+        $.map(device_cfg, function(e, i) {
+            if(e.MACAddress != mac && e.IPAddress == ipaddr){
+                flag = true;
+                return;
+            }
+        });
+
+        return flag;
+    }
+
+    function SameMac(mac)
+    {
+        for (var i = 0; i < bind_mac.length; i++ )
+        {
+            if(bind_mac[i].Chaddr.toLowerCase() == mac.toLowerCase())
+            return true;
+        }
+        return false;
+    }    
+    
+    
+    function CheckBindMacAndAddress()
+    {
+        var ifbindip=$("input[name='bindip']").val();
+        var ifbindmac=$("input[name='bindmac']").val();
+        var ifmask1=$("input[name='ethSubnetMask']").val();
+        var ifip1=$("input[name='ethIpAddress']").val();
+        var dhcpsip1=$("input[name='dhcpEthStart']").val();
+        var dhcpeip1=$("input[name='dhcpEthEnd']").val();
+
+        if(bind_mac.length > 32)
+        {
+            alert("<%t('The MAX Multiple static DHCP IPs is 32!')%>");
+            return false;
+        }
+
+        if(!ValidMacAddress(ifbindmac))
+        {
+            alert("<%t('Please input available bind mac address')%>");
+            return false;
+        } 
+
+        if(SameMac(ifbindmac))
+        {
+            alert("<%t("The bind mac address already exists!")%>");
+            $("input[name='bindmac']").focus();
+            return false;
+        }
+
+        
+        if((!ValidIpStr(ifbindip))|| (ifbindip == "0.0.0.0")){
+            alert("<%t('Please input available bind ip address')%>");
+            return false;
+        }
+
+        if((ip2int(ifbindip)&ip2int(ifmask1))!=(ip2int(ifip1)&ip2int(ifmask1)))
+        {
+            alert("<%t('The bind ip address and lan ip address should be in the same subnet!')%>");
+            return false;
+        }
+
+        if(Ischeckip(ifbindip, ifbindmac))
+        {
+            alert("<%t('The bind ip address already exists!')%>");
+            $("input[name='bindip']").focus();
+            return false;    
+        }
+
+        if((ip2int(ifbindip)< ip2int(ipv4_config.MinAddress))||(ip2int(ifbindip)> ip2int(ipv4_config.MaxAddress)))
+        {
+            alert("<%t('The bind ip address should be in the  range of the DHCP!')%>");
+            return false;
+        }
+
+        //check if Ip is in range of DHCP conditional
+        <% if defined("check_dhcpCondRange_lanipv4") then %>
+            var breakOut = false;
+            $.each(DHCPConditionalServingPool,function(i,e)
+            {
+                minAddress = ip2int(e.MinAddress);
+                maxAddress = ip2int(e.MaxAddress);
+                if (ip2int(ifbindip) >= minAddress && ip2int(ifbindip) <= maxAddress)
+                {
+                    alert("<%t('The bind ip address should NOT in the  range of the DHCP Cond POOL:')%>" + e.MinAddress + "-" + e.MaxAddress);
+                    breakOut = true;
+                    return false;
+                }
+            })
+            if (breakOut == true)
+            {
+                return false;
+            }
+        <% end %>
+        return true;
+    }
+/*end*/
+
+    function isDhcpShow(){
+        if($("input[name='dhcpEnable']").prop('checked')){
+            $(".DHCPPool").show();        
+        }
+        else{
+            $(".DHCPPool").hide();
+        }
+    }
+
+    function setDhcpRelayParms(){
+        if($("input[name='dhcpRelayEnable']").prop('checked')){
+                $("input[name='dhcpRelayIpAddress']").prop("disabled",false);
+                $("input[name='dhcpEnable']").set_checked(0);
+                $("input[name='dhcpLeasedTime']").prop("disabled",true);
+                $("#isDhcp").hide();
+                $("#isRelay").show();
+        }
+        else{
+            $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+            $("#isRelay").hide();
+            $("#isDhcp").show();
+            isDhcpShow();
+        }
+    }
+
+    $(function(){
+          LanDhcpShow();
+        if(total_lan_port_num.port_count && list_XG_lan_port_number.length == 0)
+        {
+            $("#isPort1_10g").hide();
+            $("#port1").show();
+            $("#isPort2_10g").hide();
+            $("#port2").show();
+            $("#isPort3_10g").hide();
+            $("#port3").show();
+            $("#isPort4_10g").hide();
+            $("#port4").show();
+            $("#isPort5_10g").hide();
+            $("#port5").show();
+        }
+        else{
+       setTimeout(function(){
+        if(total_lan_port_num.port_count){
+          for(var i=1;i<=total_lan_port_num.port_count;i++){
+          list_XG_lan_port_number.find(function (element) {
+           if(element == i){
+                if(i == 1){
+                $("#isPort1_10g").show();
+                $("#port1").hide();
+                }else{
+                $("#isPort1_10g").hide();
+                $("#port1").show();
+                }
+                
+                if(i == 2){
+                $("#isPort2_10g").show();
+                $("#port2").hide(); 
+                }else{
+                $("#isPort2_10g").hide();
+                $("#port2").show();
+                }
+                
+                if(i == 3){
+                $("#isPort3_10g").show();
+                $("#port3").hide();
+                }else{
+                $("#isPort3_10g").hide();
+                $("#port3").show();
+                }
+
+                if(i == 4){
+                $("#isPort4_10g").show();
+                $("#port4").hide();
+                }else{
+                $("#isPort4_10g").hide();
+                $("#port4").show();
+                }
+
+                if(i == 5){
+                $("#isPort5_10g").show();
+                $("#port5").hide();
+                }else{
+                $("#isPort5_10g").hide();
+                $("#port5").show();
+                }
+             }
+          });
+          }
+          }
+     },100);
+    }
+        // dhcpRelayEnable
+        if(operatorid == "STSO"){
+            var isRelayEnabled=$("input[name='dhcpRelayEnable']").is(":checked");
+            if(isRelayEnabled){
+                $("#isDhcp").hide();
+                $("#isRelay").show();
+                $("input[name='dhcpRelayIpAddress']").prop("disabled",false);
+                $("input[name='dhcpEnable']").set_checked(0);
+                $("input[name='dhcpLeasedTime']").prop("disabled",true);
+                $("input[name='dhcpEthEnd']").prop("disabled",true);
+                $("input[name='dhcpEthStart']").prop("disabled",true);
+            }
+            else{
+                $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+                $("#isDhcp").show();
+                $("#isRelay").hide();
+            }
+            $("input[name='dhcpRelayEnable']").change(function(){
+                setDhcpRelayParms();
+            })
+       }
+       else{
+            $("#isDhcp").show();
+            $("#isRelay").hide();
+       }
+
+        $("input[name='dhcpEnable']").change(function(){
+            isDhcpShow();
+            //Only for STSO opid if Relay is disabled and customer dhcp enable clicked
+            if(operatorid == "STSO"){
+                if($("input[name='dhcpEnable']").prop('checked')){
+                    $("input[name='dhcpLeasedTime']").prop("disabled",false);
+                    $("input[name='dhcpEthEnd']").prop("disabled",false);
+                    $("input[name='dhcpEthStart']").prop("disabled",false);
+                    $("input[name='dhcpRelayEnable']").set_checked(0);
+                    $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+                    $("#isDhcp").show();
+                    $("#isRelay").hide();
+                }
+                else{
+                    $("input[name='dhcpLeasedTime']").prop("disabled",true);
+                    var isRelayEnabled=$("input[name='dhcpRelayEnable']").is(":checked");
+                    if(isRelayEnabled){
+                        $("#isDhcp").hide();
+                        $("#isRelay").show();
+                     }
+                     else{
+                         $("#isDhcp").show();
+                         $("#isRelay").hide();
+                     }
+                }
+            }
+        })
+         <%if lanPortEnable_support then%>
+        CheckAllPortsEnable();
+            <% if !ctcadmin then %>
+            IfAllPortsEnable();
+        <%end %>
+        <%end %>
+        DisableInputElements();
+        PortModeShow();
+        StaticDhcpEntryShow();
+        StaticNatShow();
+        <% if opid == "VFSP" then %>
+        <%if ctcadmin then%>
+        STBDhcpShow();   
+        <%else %>
+        $("input[name='ethIpAddress']").prop("disabled",true);
+        $("input[name='ethSubnetMask']").prop("disabled",true);
+        <%end %>
+        <%end %>
+
+        /**ENABLE THE DHCP FIELDS FOR THE OPID TRCL NORMAL USER**/
+            <% if opid == "TRCL" then %>
+                <%if !ctcadmin then%>
+                $("input[name='firstDns']").prop("disabled",false);
+                $("input[name='secondDns']").prop("disabled",false);
+                $("input[name='thirdDns']").prop("disabled",false);
+                $("#save2").prop("disabled",false);
+                enable_static_dhcp_entry();
+                <%end%>
+                <%end%>
+
+
+        <% if defined("enable_dhcp") then %>
+        <% if is_greydhcp then %>
+        $("input[name='dhcpEnable']").prop("disabled",true);
+        $("input[name='dhcpRelayEnable']").prop("disabled",true);
+        $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+        <% else %>
+        $("input[name='dhcpEnable']").prop("disabled",false);
+        <%end%>
+        <%end%>
+        
+        <% if micro_defined("HAS_PORT_MODE") then %>
+        <% if opid == "VFSP"  then %>
+        <% else %>
+        <% if opid == "ORGS"  then %>
+        <%else%>
+        <% if opid == "VIVA"  then %>
+        <% else %>
+            <% if opid == "CHRA" then%>
+                $("select[name='unimode1']").prop("disabled", true);
+                $("select[name='unimode2']").prop("disabled", true);
+                $("select[name='unimode3']").prop("disabled", true);
+                $("select[name='unimode4']").prop("disabled", true);
+            <% end %>
+       $("form[name='portmode']").encrypt_submit(function()
+        {
+            if((is_Bridge_mode.Lan1==1)||(is_Bridge_mode.Lan2==1)||(is_Bridge_mode.Lan3==1)||(is_Bridge_mode.Lan4==1)||(is_Bridge_mode.Lan5==1))
+            {
+                if(CheckAllPortsToBridgeMode() == true)
+                {
+                    alert("<%t('Interface is part of a DomainGroup.Remove it from the domain before changing the port mode')%>");
+                    return false;
+                }
+            }
+            if(CheckAllPortsToBridgeMode() == true)
+            {
+                if(CheckUniPOrtModeChanged() == true)
+                {
+                    var flagRoutingRules = CheckUniPortRoutingRulesPresence();
+                    if( flagRoutingRules  == 2 )
+                    {
+                       alert("<%t('The LAN port has GRE rule configured in US Classifier page. Remove before changing port from Route to Bridge mode.')%>");
+                       return false;
+                    }
+                } 
+                var confirm = window.confirm(("<%t('If all of the ports are set to bridge mode,you will not have access to {0},unless 5s reset.If you click OK,the {1} will reboot to take effect.')%>").format(board_type,board_type));
+                if (confirm == true)
+                {
+                    $("input[name='isReboot']").val("1");
+                }
+                else
+                {
+                    return false;
+                }
+            }
+            else
+            {
+		if(CheckIsBridgeMode() == true)
+                {
+		    alert("<%t('Interface is part of a DomainGroup.Remove it from the domain before changing the port mode')%>");        
+	       	    return false;}
+		
+                if(CheckUniPOrtModeChanged() == true)
+                {
+                    var flagRoutingRules = CheckUniPortRoutingRulesPresence();
+                    if( flagRoutingRules  == 1 )
+                    {
+                       alert("<%t('The LAN port has qos rule configured in QoS Config page. Remove before changing port from Route to Bridge mode.')%>");
+                       return false;
+                    }
+                    else if( flagRoutingRules  == 2 )
+                    {
+                       alert("<%t('The LAN port has GRE rule configured in US Classifier page. Remove before changing port from Route to Bridge mode.')%>");
+                       return false;
+                    }
+
+                    var confirm = window.confirm(("<%t('Port mode changes,need reboot to effect,click OK for {0} restart!')%>").format(board_type));
+                    if (confirm == true)
+                    {
+                        $("input[name='isReboot']").val("1");
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+            
+            disable_all_buttons();
+            var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;			
+            evt.preventDefault();
+        });
+        <% end %>
+        <% end %>
+        <% end %>
+        <% end %>
+
+        $("form[name='dhcp']").encrypt_submit(function(){
+
+            if(!CheckLanIpaddressValid())
+            {
+                return false;
+            }
+            if(!CheckNetMaskValid())
+            {
+                return false;
+            }
+            
+            if(!CheckDhcpAddressValid())
+            {
+                return false;
+            }
+            if(!CheckDnsValid())
+            {
+                return false;
+            }
+            if(!CheckDhcpLeaseTimeValid())
+            {
+                return false;
+            }
+            // only for STSO opid
+            <% if opid == "STSO" then %>
+            if($("input[name='dhcpRelayEnable']").prop('checked')){
+                var relayIpAddress = $("input[name='dhcpRelayIpAddress']").val();
+                if((!ValidIpStr(relayIpAddress))|| (relayIpAddress == "0.0.0.0")){
+                    alert("<%t('Please input valid DHCP Server IP Address')%>");
+                    return false;
+                }
+        //popup window
+        var confirm = window.confirm("<%t('Enabling the DHCP IPv4 relay function will disable the DHCP IPv4 service in the device')%>");
+        if (confirm == true)
+            {
+                $("input[name='dhcpRelayIpAddress']").prop("disabled",false);
+                $("input[name='dhcpEnable']").set_checked(0);
+                $("input[name='dhcpLeasedTime']").prop("disabled",true);
+                $("input[name='dhcpEthEnd']").prop("disabled",true);
+                $("input[name='dhcpEthStart']").prop("disabled",true);
+            }
+            else{
+                $("input[name='dhcpRelayEnable']").set_checked(0);
+                $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+                $("input[name='dhcpEnable']").set_checked(isDhcpEnable ? 1 : 0);
+                if(isDhcpEnable == 1){
+                    $(".DHCPPool").show(); 
+                }
+                else{
+                    $(".DHCPPool").hide();
+                    $("input[name='dhcpLeasedTime']").prop("disabled",true);
+                }
+            }
+        }
+        else{
+            $("input[name='dhcpRelayIpAddress']").prop("disabled",true);
+        }
+
+            <% end %>
+
+            <% if opid != "SIGH" then %>
+            var newDhcpEthStart=$("input[name='dhcpEthStart']").val();
+            var newDhcpEthEnd=$("input[name='dhcpEthEnd']").val();
+            if(oldDhcpEthStart!=newDhcpEthStart || oldDhcpEthEnd!=newDhcpEthEnd){
+                if (isDomainPresent.domainCount)
+                {
+                    alert("<%t('Domain grouping is enabled. Cannot change IP Range')%>");
+                    return false;
+                }
+            }
+            <% end %>
+
+			$("input[name='dhcpEnable']").prop("disabled", false);
+
+            disable_all_buttons();
+            var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;			
+            evt.preventDefault();
+        });
+
+        $("form[name='bindmac']").encrypt_submit(function(){
+    
+            if(!CheckBindMacAndAddress())
+            {
+                return false;
+            }
+            disable_all_buttons();
+            var evt = (typeof (event) == 'undefined')  ? arguments.callee.caller.arguments[0] : event ;			
+            evt.preventDefault();
+        })
+     })  ;
+    var login_without_pwd = false  ;
+	var has_bridge_wan = false;
+	<% if "TMUO"==opid then%>  
+		has_bridge_wan = <% has_bridge_wan %>;
+    <% elif defined("check_has_bridge_wan") then %>	
+        has_bridge_wan = <% has_bridge_wan %>;
+    <% elif defined("hide_port_mode") then %>
+        has_bridge_wan = true;
+	<% end %>
+    <% if defined("@login_without_pwd") then %>
+        <% if !ctcadmin then %>
+            login_without_pwd = true;
+        <% end %>
+    <% elif defined("@login_without_pwd_lan") then %>
+        <% if isLoginThroughLan then %>
+            <% if !ctcadmin then %>
+                login_without_pwd = true;
+            <% end %>
+        <% end %>
+    <% end %>
+    $(document).ready(function () {
+        if(false){
+            $("form[name='portmode']").hide();
+        }
+    });
+     
+</script>
+
+<body>
+    <div class="container">
+        <% if micro_defined("HAS_PORT_MODE") then %>
+        <% if opid == "VFSP"  then %>
+        <% else %>
+        <% if opid == "ORGS"  then %>
+        <% else %>
+        <% if opid == "VIVA"  then %>
+        <% else %>
+        <form  action="?allbridge" method="post" name="portmode">
+            <h3><%T("Port Mode")%></h3>
+            <% if opid != "CHRA" then%>
+            <%if !defined("@hide_bridge") then %>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("All Ports to Bridge Mode")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right x_form_caption">
+                        <input type="checkbox" name="allbridge" data-toggle="toggle" />
+                        <input type="hidden" name="allstr" value="0" disabled/>
+                    </div>
+                </div>
+            </div>
+            <% end %>
+            <% end %>
+            <% if lan_port_num > 0 then%>
+	    			<div class="row">
+                		<div class="col-xs-4 x_form_caption">
+                    		<span id="port1"><%T("Port1")%></span>
+                            <span id="isPort1_10g"><%T("Port1(10G)")%></span>
+                    <%if lanPortEnable_support then%>
+                    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;
+                    <%T("Enable")%>
+                    &nbsp;&nbsp;&nbsp;
+                    <input type="checkbox" name="ifEnable1" data-toggle="toggle"/>
+                    <% end %>
+                		</div>
+                		<div class="col-xs-8">
+                    		<div class="support-pull-right">
+                        		<select class="form-control x-input-sm" name="unimode1">
+                            		<option value="1">
+                                		<%T("Route Mode")%>
+                            		</option>
+                            		<option value="0">
+                                		<%T("Bridge Mode")%>
+                            		</option>
+                        		</select>
+                    		</div>
+                		</div>
+            	</div>
+	    	<% end %>	
+            		
+            <% if lan_port_num > 1 then%>
+	    			<div class="row">
+                		<div class="col-xs-4 x_form_caption">
+                    		<span id="port2"><%T("Port2")%></span>
+                            <span id="isPort2_10g"><%T("Port2(10G)")%></span>
+                    <%if lanPortEnable_support then%>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;
+                    <%T("Enable")%>
+                    &nbsp;&nbsp;&nbsp;
+                    <input type="checkbox" name="ifEnable2" data-toggle="toggle"/>
+                    <% end %>
+                		</div>
+                		<div class="col-xs-8">
+                    		<div class="support-pull-right">
+                        		<select class="form-control x-input-sm" name="unimode2">
+                            		<option value="1">
+                                		<%T("Route Mode")%>
+                            		</option>
+                            		<option value="0">
+                                		<%T("Bridge Mode")%>
+                            		</option>
+                        		</select>
+                    		</div>
+                		</div>
+            	</div>
+            <% end %>
+            
+            <% if lan_port_num > 2 then%>  
+	    			<div id="port3" class="row">
+                		<div class="col-xs-4 x_form_caption">
+                    		<span id="port3"><%T("Port3")%></span>
+                            <span id="isPort3_10g"><%T("Port3(10G)")%></span>
+                    <%if lanPortEnable_support then%>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;
+                    <%T("Enable")%>
+                    &nbsp;&nbsp;&nbsp;
+                    <input type="checkbox" name="ifEnable3" data-toggle="toggle"/>
+                     <% end %>
+                		</div>
+                		<div class="col-xs-8">
+                    		<div class="support-pull-right">
+                        		<select class="form-control x-input-sm" name="unimode3">
+                            		<option value="1">
+                                		<%T("Route Mode")%>
+                            		</option>
+                            		<option value="0">
+                                		<%T("Bridge Mode")%>
+                            		</option>
+                        		</select>
+                    		</div>
+                		</div>
+            	</div>
+            <% end %>
+            
+            <% if lan_port_num > 3 then%>
+	    			<div class="row">
+                	<div class="col-xs-4 x_form_caption">
+                        <span id="port4"><%T("Port4")%></span>
+                        <span id="isPort4_10g"><%T("Port4(10G)")%></span>
+                    <%if lanPortEnable_support then%>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    &nbsp;&nbsp;&nbsp;
+                    <%T("Enable")%>
+                    &nbsp;&nbsp;&nbsp;
+                    <input type="checkbox" name="ifEnable4" data-toggle="toggle"/>
+                    <% end %>
+                	</div>
+                		<div class="col-xs-8">
+                    		<div class="support-pull-right">
+                        		<select class="form-control x-input-sm" name="unimode4">
+                            		<option value="1">
+                                		<%T("Route Mode")%>
+                            		</option>
+                            		<option value="0">
+                                		<%T("Bridge Mode")%>
+                            		</option>
+                        		</select>
+                    		</div>
+                		</div>
+            	</div>
+            <% end %>
+            
+            <% if lan_port_num > 4 then%>
+                        <% if opid != "CHRA" then%>
+            			<div class="row">
+                			<div class="col-xs-4 x_form_caption">
+                    			<span id="port5"><%T("Port5")%></span>
+                                <span id="isPort5_10g"><%T("Port5(10G)")%></span>
+                    <%if lanPortEnable_support then%>
+                     &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    
+                    <%T("Enable")%>
+                    &nbsp;&nbsp;&nbsp;
+                    <input type="checkbox" name="ifEnable5" data-toggle="toggle"/>
+                    <% end %>
+                			</div>
+                			<div class="col-xs-8">
+                    			<div class="support-pull-right">
+                        			<select class="form-control x-input-sm" name="unimode5">
+                            			<option value="1">
+                                			<%T("Route Mode")%>
+                            			</option>
+                            			<option value="0">
+                                			<%T("Bridge Mode")%>
+                            			</option>
+                        			</select>
+                    			</div>
+                			</div>
+            			</div>
+                        <% end %>
+            <% end %>
+            
+            <div class="row">
+                <input  type="hidden"  name="isReboot" value="0"  />
+            </div>
+            <% if opid != "CHRA" then%>
+            <div class="row text-center">
+                <input type="submit" class="submitX button-sm" value="<%T("Save")%>" id="save1"/>
+            </div>
+            <% end %>
+        </form>
+        <div class="x_line x_w1"></div>
+
+     <% end %>
+     <% end %>
+     <% end %>
+     <% end %>
+
+        <form  action="?config" method="post" name="dhcp">
+            <!-- New Form For DHCP Relay - STSO Opid Starts -->
+            <% if opid == "STSO" then%>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP IPv4 Relay Enable")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right x_form_caption">
+                        <input  type="checkbox"  name="dhcpRelayEnable"  data-toggle="toggle" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP Server IP Address")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" name="dhcpRelayIpAddress" type="text" size="20" maxlength="16"  />
+                    </div>
+                </div>
+            </div>
+            <% end %>
+             <!-- New Form For DHCP Relay - STSO Opid Ends -->
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <span id="isRelay"><%T("Relay Agent IPv4 Address")%> </span>
+                    <span id="isDhcp" style="display: none;"><%T("IP Address")%></span>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" name="ethIpAddress" type="text" size="20" maxlength="16"  />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("Subnet Mask")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" name="ethSubnetMask" type="text" size="20" maxlength="16" />
+                    </div>
+                </div>
+            </div>
+            <% if opid != "CHRA" then%>
+        <div style=<% is_DHCPServerConfigurable_enable %>>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP Enable")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right x_form_caption">
+                        <input  type="checkbox"  name="dhcpEnable"  data-toggle="toggle" />
+                    </div>
+                </div>
+            </div>
+            <div class="DHCPPool">
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP Start IP Address")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" type="text" name="dhcpEthStart"value="" size="20" maxlength="16" />
+                    </div>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP End IP Address")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" name="dhcpEthEnd" type="text" value="" size="20" maxlength="16" />
+                    </div>
+                </div>
+            </div>
+            </div>
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("DHCP Lease Time")%>
+                </div>
+                <div class="col-xs-8 x_form_caption">
+                    <div class="support-pull-right">
+                        <input  class="form-control x-input-sm" name="dhcpLeasedTime" type="text" value="" size="20" maxlength="8" /><%T("(2~129600 mins, or 0 means 1 day)mins.")%>
+                    </div>
+                </div>
+            </div>    
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("Primary DNS")%>
+                </div>
+                <div class="col-xs-8 x_form_caption">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" type="text" name="firstDns"value="" size="20" maxlength="16"  />
+                    </div>
+                </div>
+            </div>            
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("Secondary DNS")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" type="text" name="secondDns" value="" size="20" maxlength="16"  />
+                    </div>
+                </div>
+            </div>
+                        <% if support_third_dns then %>
+                        <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("Tertiary DNS")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm" type="text" name="thirdDns" value="" size="20" maxlength="16"  />
+                    </div>
+                </div>
+            </div>
+                        <% end %>
+            <% if opid == "VFSP" then %>
+                <%if ctcadmin then%>
+                <div class="x_line x_w1"></div>
+                <div class="row">
+                    <div class="col-xs-4 x_form_caption">
+                        <%T("STB DHCP Enable")%>
+                    </div>
+                    <div class="col-xs-8">
+                        <div class="support-pull-right x_form_caption">
+                            <input  type="checkbox" name="stbDhcpEnable" data-toggle="toggle" />
+                        </div>
+                    </div>
+                </div>    
+                <div class="row">
+                    <div class="col-xs-4 x_form_caption">
+                        <%T("STB DHCP Host Name")%>
+                    </div>
+                    <div class="col-xs-8">
+                        <div class="support-pull-right">
+                            <input class="form-control x-input-sm" name="stbDhcpHostName" type="text" value="" size="20" maxlength="16" />
+                        </div>
+                    </div>
+                </div>    
+                <div class="row">
+                    <div class="col-xs-4 x_form_caption">
+                        <%T("STB DHCP Start IP Address")%>
+                    </div>
+                    <div class="col-xs-8 x_form_caption">
+                        <div class="support-pull-right">
+                            <input class="form-control x-input-sm" type="text" name="stbDhcpEthStart"value="" size="20" maxlength="16" disabled="true" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-xs-4 x_form_caption">
+                        <%T("STB DHCP End IP Address")%>
+                    </div>
+                    <div class="col-xs-8">
+                        <div class="support-pull-right">
+                            <input class="form-control x-input-sm" name="stbDhcpEthEnd" type="text" value="" size="20" maxlength="16" disabled="true" />
+                        </div>
+                    </div>
+                </div>                
+                <div class="x_line x_w1"></div>
+                <%end%>
+            <%end%>
+
+            <input  type="hidden"  name="isReboot_1" value="0"  />
+            <div class="row text-center">
+                <input type="submit" class="submitX button-sm" value="<%T("Save")%>" id="save2"/>
+                <% if need_refresh then %>
+                <input type="button" class="buttonX button-sm" value="<%T("Refresh")%>" onclick="refresh();" />
+                <%end%>
+            </div>
+        </div>
+        <% end %>
+        </form>
+        <div class="x_line x_w1"></div>
+        <% if opid != "CHRA" then%>
+        <h3 class="x_header"><%T("Static DHCP Entry")%></h3>
+        <form  action="?bindmac" method="post" name="bindmac">
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("MAC Address")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input class="form-control x-input-sm"  name="bindmac" type="text" value="" size="20" maxlength="17" />
+                    </div>
+                </div>
+            </div>    
+            <div class="row">
+                <div class="col-xs-4 x_form_caption">
+                    <%T("IP Address")%>
+                </div>
+                <div class="col-xs-8">
+                    <div class="support-pull-right">
+                        <input  class="form-control x-input-sm" name="bindip" type="text" value="" size="20" maxlength="16" />
+                    </div>
+                </div>
+            </div>
+            <div class="row button-position">
+                <input type=submit class="submitX button-sm" value="<%T("Add")%>" id="add"  />
+            </div>
+
+            <div class="row">
+                <table  class="table table-bordered table-striped">
+                    <tbody id="bind_list">
+                        <tr >
+                            <td class='vname ths'><%T("MAC Address")%></td>
+                            <td class='vname ths'><%T("IP Address")%></td>
+                            <td class='vname ths'><%T("Delete")%></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+         </form>
+        <% end %>
+
+        <% if defined("staticNat") then %>
+        <h3 class="x_header"><%T("Static NAT Table")%></h3>
+        <form name="staticnat">
+            <div class="row">
+                <table class="table table-bordered table-striped">
+                    <tbody id="staticnat_list">
+                        <tr >
+                            <td class='vname ths'><%T("LAN Device IP Address")%></td>
+                            <td class='vname ths'><%T("WAN Connection")%></td>
+                            <td class='vname ths'><%T("Protocol")%></td>
+                            <td class='vname ths'><%T("WAN Port Range")%></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </form>
+        <% end %>
+    </div>
+    <%include ( "html_glb/footer.html" )%>
+   </body>
+</html>
+

@@ -1,0 +1,168 @@
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta HTTP-EQUIV='Pragma' CONTENT='no-cache'/>
+    <meta name="format-detection" content="telephone=no"/>
+    <meta name="referrer" content="no-referrer"/>
+    <% opid = ri("OperatorID") ;%>
+    <%if opid != "VFSP" then %>
+        <% if need_encrypt_data then%>
+            <script src="/js_glb/jsencrypt.min.js?v=<%software_version%>"></script>
+        <% end %>
+        <script src="/js_glb/all.min.js?v=<%software_version%>"></script>
+        <script src="/js_glb/port_forwarding.js?v=<%software_version%>"></script>
+        <link href="/css_glb/all.min.css" type="text/css" rel="stylesheet" />
+        <% if defined("@need_tleg_css") then %>
+           <link href="/css_glb/tleg_ont.css?v=<%software_version%>" type="text/css" rel="stylesheet" />  
+        <% end %>
+
+        <% if defined("@need_bootstrap_toggle")  then %>
+            <link href="/common/css/bootstrap-toggle.min.css" type="text/css" rel="stylesheet" />
+            <script src="/common/js/bootstrap-toggle.min.js"></script>    
+        <%end%>
+    <% else %>                 
+    <script src="/common/js/jquery-3.5.1.js"></script>
+    <script type="text/javascript" src="/js_glb/bootstrap-filestyle.js"> </script>
+    <script src="/js_glb/jquery-aont.js?v=<%software_version%>"></script>
+    <script src="/js_glb/global.js?v=<%software_version%>"></script>
+    <script src="/js_glb/raphael-2.1.4.min.js"></script>
+    <script src="/js_glb/justgage-1.1.0.min.js"></script>
+    <script src="/js_glb/string_extend.js?v=<%software_version%>"></script>
+    <script src="/js_glb/jquery.aont.submit.js?v=<%software_version%>"></script>
+    <script src="/common/js/wan_alive_time.js?v=<%software_version%>"></script>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge,chrome=1">
+<% if need_encrypt_data then%>
+    <script src="/js_glb/jsencrypt.min.js?v=<%software_version%>"></script>
+<% end %>
+    <script src="/js_glb/sjcl.js?v=<%software_version%>"></script>
+    <script src="js_glb/vendor/require.js"></script>
+    <script src="js_glb/require.config.js"></script>
+    <script src="/js_glb/crypto_page.js?v=<%software_version%>"></script>
+
+    <link rel="stylesheet" href='<% print_value("@css_path") %>/main.css?v=<%software_version%>' type='text/css'/>
+    <link rel="stylesheet" href='<% print_value("@css_path") %>/ont.css?v=<%software_version%>' type='text/css'/>
+    <link href="/common/css/bootstrap.min.css" type="text/css" rel="stylesheet" />
+
+<% if defined("@need_bootstrap_toggle")  then %>
+    <link href="/common/css/bootstrap-toggle.min.css" type="text/css" rel="stylesheet" />
+    <script src="/common/js/bootstrap-toggle.min.js"></script>    
+<%end%>
+
+    <link rel="stylesheet" href='/css_glb/general-style.css?v=<%software_version%>' type='text/css'/> 
+    <link href='/css_glb/<%print_value("@style_file_name")%>.css?v=<%software_version%>' type="text/css" rel="stylesheet" />
+
+<% if defined("@need_vfsp_css") then %>
+    <link href="/css_glb/vfsp-reset.css?v=<%software_version%>" type="text/css" rel="stylesheet" />
+    <link href="/css_glb/vfsp-content.css?v=<%software_version%>" type="text/css" rel="stylesheet" />   
+<% end %>
+    <% if defined("@need_jpdx_css") then %>
+        <link href="./css_glb/jpdx-main.css?v=<%software_version%>" type="text/css" rel="stylesheet" />  
+    <% end %>
+    <script src="js_glb/protectBtnClick.js?v=0.0.0"></script>
+    <% end %>
+<script language=javascript>
+<% if need_encrypt_data then %>
+    var pubkey = <% get_pubkey %>; 
+<% end %>
+
+var isWanPage = parent.document.getElementById('mainFrame')
+if ((sessionStorage.getItem('lastSeletedWaniPv4') || sessionStorage.getItem('lastSeletedWaniPv6'))  && isWanPage && isWanPage.getAttribute('src').indexOf('show_wan_status.cgi') == -1) {
+    sessionStorage.removeItem('lastSeletedWaniPv4');
+    sessionStorage.removeItem('lastSeletedWaniPv6');
+}
+// to check wan session present
+function IsHtmlItem(text) {
+    return text.match(/<[^>]+>/g)!=null;
+}
+$.fn.encrypt_submit = function(callback) {  
+	var postURL = $(this).attr("action");
+	var locURL = window.location.pathname;
+	var my_function = function(){
+		 var result = callback.apply(this);	
+		 if((result != undefined) & (!result))
+		 {
+		     return false;
+		 }
+         $.ajax({
+             url: postURL,
+             type: 'POST',
+             data: $('form').serialize()
+         })
+         .done(function(data){
+             var result= "";
+             result = data;
+             if(result.indexOf("<html>")!=-1)  
+             {
+                 window.location.replace(locURL);
+             }else if((result.indexOf("<script>alert")!=-1) &&  
+			 	      (result.indexOf("<html>")==-1))
+             { 
+                 document.write(result);
+                 window.location.replace(locURL);	 
+             }else if(result.length>0)
+             {
+                 alert(data);
+                 window.location.replace(locURL);
+             }else
+             {
+                 window.location.replace(locURL);
+             }
+         })
+         disable_all_buttons();	  
+	}
+	return this.submit(my_function);
+}	
+    var session_id = '<% session_id %>';
+    if(session_id) {
+        window.localStorage.setItem('session_id', session_id);
+    }
+    $(document).ajaxSend(function( event, request, settings ) 
+        {
+            if (settings.type == "POST") 
+            {                                   
+                if (settings.data === undefined || settings.data === "") 
+                {
+                    settings.data = 'csrf_token=<% csrf_token %>';
+                    request.setRequestHeader( "Content-Type", "application/x-www-form-urlencoded; charset=UTF-8" );
+                }
+                else
+                {
+                    if ((settings.contentType || "").indexOf("application/x-www-form-urlencoded") < 0)
+                    {
+                        alert("Error Content-Type:" + settings.contentType);
+                        request.abort();                        
+                    }
+
+                    if (settings.data.indexOf("csrf_token") < 0)
+                    {
+                        settings.data += '&csrf_token=<% csrf_token %>'
+                    }                    
+
+<% if need_encrypt_data then%>
+                    settings.data = crypto_page.encrypt_post_data(pubkey, settings.data);
+<% end %>
+                }                                    
+            }             
+        });
+
+    // Global UI unlocker: removes operator greyout across all pages
+    $(document).ready(function() {
+        function unlock_all() {
+            $('input').not("[type='hidden']").prop('disabled', false);
+            $('select').prop('disabled', false);
+            $('button').prop('disabled', false);
+            $('.buttonX').prop('disabled', false);
+            $('#save1, #save2, #save, #add, #Apply_button, input[type="submit"]').prop('disabled', false);
+        }
+        unlock_all();
+        setTimeout(unlock_all, 150);
+        setTimeout(unlock_all, 500);
+        setTimeout(unlock_all, 1500);
+    });
+</script>
+<!--[if lt IE 9]>
+    <script src="/common/js/html5shiv.min.js"></script>
+    <script src="/common/js/html5shiv-printshiv.min.js"></script>
+    <script src="/common/js/respond.min.js"></script>
+    
+<![endif]-->
+</head>
