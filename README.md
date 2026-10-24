@@ -49,32 +49,99 @@ Bu proje, modemin içindeki yazılımı güvenli bir şekilde güncelleyerek bu 
 
 ---
 
-### Nasıl Uygulanır?
+### 🚀 Nasıl Uygulanır? (Adım Adım Sade Rehber)
 
-#### Gereksinimler:
-- Bilgisayarınızda Python 3.8+ kurulu olmalıdır.
-- Modem ile bilgisayarınız Ethernet kablosu ile bağlı olmalıdır (`192.168.1.X` bloğu).
-- Modemin stok firmware paketi (ayrıştırılmış `rootfs.squashfs` ve çekirdek).
+Modemi özgürleştirme mantığı son derece basittir: Modemin hâlihazırda çalışan sistemine dokunmadan, arkadaki **yedek bölüme (Slot A/B)** özelleştirilmiş yazılımı yüklüyoruz ve cihazı oradan başlatıyoruz. Bu sayede modemin çökme veya kullanılamaz hale gelme ("brick") riski ortadan kalkar.
 
-#### Adım 1: Dosya Sistemini Derleme (SquashFS)
-Bu depoda `rootfs_patches/` altında yer alan yamalar kök dosya sistemine entegre edildikten sonra `mksquashfs` ile paketlenir:
-```bash
-cd tools/repack
-mksquashfs rootfs_sq rootfs_v6.sqfs -comp lzma -b 128K -noappend -pf perms.pf
+```text
+  [Kilitli Modem] ──(Adım 1: Geçici Root)──> [İlk Bağlantı]
+                                                    │
+  [Özel Firmware] ──(Adım 2: İmaj Hazırlığı)────────┤
+                                                    ▼
+  [Adım 3: flash_firmware.py] ──> Yedek Slota Güvenli Yazım ──> [Tam Yetkili Özgür Modem] 🎉
 ```
 
-#### Adım 2: HDR2 Firmware İmajını Birleştirme
-JAMCRC sağlamasını otomatik hesaplayarak U-Boot'un kabul edeceği ikili imajı üretin:
-```bash
-python repack_firmware.py --pkg /yol/stok_paket.bin --sqfs rootfs_v6.sqfs --out image_mod_v6_HDR2.bin
-```
+#### 📋 Ön Hazırlık
+1. Bilgisayarınızı modemin sarı LAN portlarından birine **Ethernet kablosu** ile bağlayın (Wi-Fi üzerinden işlem yapılması tavsiye edilmez).
+2. Bilgisayarınızın Ethernet adaptörünün `192.168.1.X` bloğunda olduğundan emin olun (Örn: `192.168.1.5`).
+3. Modemin arkasındaki etikette yazan kullanıcı adı (`admin`) ve fabrika web şifrenizle `http://192.168.1.1` adresine giriş yapılabildiğini teyit edin.
+4. Gerekli Python kütüphanelerini yükleyin:
+   ```bash
+   pip install requests pycryptodome
+   ```
 
-#### Adım 3: Güvenli Flaşlama (Boşta Olan Slota Yazma)
-Cihaz çift yuva (Dual-Bank A/B) mimarisine sahip olduğundan, işlem çalışan sisteme değil **boşta olan yedek slota** yapılır:
+---
+
+#### 1️⃣ Adım 1: Geçici İlk Bağlantıyı Açma
+Modeminiz fabrika çıkışında kilitli olduğu için, flaşlama öncesinde tek komutla geçici bir yönetim kapısı açıyoruz:
 ```bash
-python tools/flashing/flash_firmware.py --image image_mod_v6_HDR2.bin --http-server 192.168.1.8:8000 --target-slot image0
+python tools/initial_access/get_initial_shell.py --password "MODEM_ARAYUZ_SIFRENIZ"
 ```
-Bu betik hedef bölümü donanımsal olarak siler, blok blok yazar, MD5 sağlama kontrolü yapar ve başarılı olursa aktif slotu değiştirip modemi yeniden başlatır.
+*(Şifrenizi komutta belirtmek istemiyorsanız `--password` yazmadan çalıştırabilirsiniz; ekranda güvenli olarak sorulacaktır.)*
+
+Ekranda **`[+] SUCCESS! Root shell is active on 192.168.1.1:2360!`** yazısını gördüğünüzde modeme ilk kapı açılmıştır.
+
+> ⚠️ **Önemli Hatırlatma:** Bu geçici kapı, telekom servisinin XML kontrolü nedeniyle yaklaşık 10 dakika sonra cihazı yeniden başlatabilir. Bu yüzden bekletmeden doğrudan 2. ve 3. adıma geçiniz!
+
+---
+
+#### 2️⃣ Adım 2: Özel Firmware İmajını Hazırlama
+Eğer elinizde hazır bir `.bin` özel firmware imajı varsa doğrudan **Adım 3**'e geçebilirsiniz. Kendiniz üretmek isterseniz:
+1. `rootfs_patches/` klasöründeki dosyaları çıkardığınız kök dosya sistemine yerleştirin.
+2. Dosya sistemini ve U-Boot HDR2 imajını tek komutla paketleyin:
+   ```bash
+   cd tools/repack
+   mksquashfs rootfs_sq rootfs_v6.sqfs -comp lzma -b 128K -noappend -pf perms.pf
+   python repack_firmware.py --pkg /yol/stok_paket.bin --sqfs rootfs_v6.sqfs --out custom_firmware.bin
+   ```
+
+---
+
+#### 3️⃣ Adım 3: Güvenli Flaşlama (Tek Komutla Tam Otomatik)
+Hazırladığımız imajı modemin boşta duran yedek yuvasına yüklüyoruz. Geliştirdiğimiz flasher betiği tüm transferi, dosya sunucusunu, donanımsal MTD silme işlemini, MD5 sağlama kontrolünü ve slot değişimini **tam otomatik** olarak halleder:
+
+```bash
+python tools/flashing/flash_firmware.py --image custom_firmware.bin --port 2360
+```
+*(Not: Eğer cihazınızda zaten özel firmware yüklüyse ve kalıcı porta bağlanıyorsanız `--port` belirtmenize gerek yoktur; varsayılan 2324 portunu kullanır.)*
+
+**Bu betik arka planda neler yapar?**
+- Modemin o an hangi yuvadan çalıştığını okur ve otomatik olarak **çalışmayan güvenli yedek yuvayı** seçer.
+- Bilgisayarınızda geçici bir HTTP transfer sunucusu açar.
+- MIPS donanım sürücüsüyle hedef yuvayı temizler ve yeni firmware'i blok blok yazar.
+- Yazılan verinin sağlamasını yerel dosyanızla (MD5) kıyaslayarak doğrular.
+- Her şey doğruysa aktif yuva anahtarını (`Imagetool switch`) çevirir ve modemi güvenle yeniden başlatır (`reboot`).
+
+Yaklaşık 60 saniye sonra modeminiz açıldığında işlem tamamlanmıştır!
+
+---
+
+#### 🎯 Adım 4: Özgürlüğün Tadını Çıkarın (Hızlı İpuçları)
+
+- **Şifresiz Kalıcı Root Erişimi:**
+  Artık dilediğiniz zaman terminalinizden doğrudan modeme bağlanabilirsiniz:
+  ```bash
+  telnet 192.168.1.1 2324
+  ```
+  *(Şifre sormaz, doğrudan `#` root yetkisiyle açılır. Cihaz kapansa veya elektrik kesilse bile kalıcıdır.)*
+
+- **Gerçek Köprü Modu (Bridge Mode) Açma:**
+  Web arayüzünde (`http://192.168.1.1`):
+  - `Ağ (Network) -> WAN` sayfasına gidin.
+  - İlgili WAN bağlantısını düzenleyin, Mod olarak **Bridge** seçin ve VLAN ID'nizi (Superonline için genelde `100`) yazın.
+  - Artık kendi router'ınızı (Asus, Keenetic, OpenWrt, pfSense vb.) modeme bağlayıp PPPoE kullanıcı adı ve şifrenizi kendi cihazınızdan sonlandırabilirsiniz.
+
+- **Özel DNS Tanımlama:**
+  - `Ağ -> LAN` sayfasına girin.
+  - Kilitleri kalkmış olan DNS kutularına `1.1.1.1` veya `9.9.9.9` yazıp **Kaydet** butonuna basın.
+
+- **Operatör Uzaktan Yönetimini (TR-069) Kapatma:**
+  Telnet kabuğundan şu komutları vererek servis sağlayıcının uzaktan ayar değiştirmesini veya imaj yüklemesini kalıcı olarak durdurabilirsiniz:
+  ```sh
+  cfgcli -s InternetGatewayDevice.ManagementServer.EnableCWMP false
+  cfgcli -s InternetGatewayDevice.ManagementServer.URL http://127.0.0.1:80/
+  cfgcli commit
+  ```
 
 ---
 
@@ -155,14 +222,18 @@ nokia-g2426ga-custom-firmware/
 │   ├── TEKNIK_DETAYLAR.md               # Çekirdek, MTD, HDR2 ve tersine mühendislik kılavuzu
 │   └── DENEYIMLER_VE_COZUMLER.md        # Karşılaşılan engeller ve kök neden analizleri
 ├── tools/
+│   ├── initial_access/
+│   │   └── get_initial_shell.py         # Kilitli modeme tek tıkla ilk geçici root açıcı
 │   ├── repack/
 │   │   ├── repack_firmware.py           # HDR2 başlık ve JAMCRC hesaplayıcı / repacker
 │   │   ├── gen_pseudo.py                # SquashFS izin tablosu üretici
 │   │   ├── perms.pf                     # 2.814 düğümün dosya yetki tablosu
 │   │   └── patch_menu.py                # menu.cgi rol fonksiyonu makine kodu yamalayıcısı
 │   └── flashing/
-│       ├── gen_erase_device.py          # MIPS donanımsal MTD silici üretici
-│       └── flash_firmware.py            # Otomatik flaşlama, MD5 doğrulama ve slot değiştirici
+│       ├── flash_firmware.py            # Otomatik sunuculu, MD5 doğrulamalı flaşlama betiği
+│       ├── erase_mtd2                   # MTD2 için hazır 302 bayt MIPS donanım silici
+│       ├── erase_mtd4                   # MTD4 için hazır 302 bayt MIPS donanım silici
+│       └── gen_erase_device.py          # MIPS donanımsal MTD silici kaynak kod üreticisi
 ├── rootfs_patches/
 │   ├── etc/rcS.d/S99rr.sh               # Çökmesiz kalıcı supervisor başlangıç kancası
 │   └── webs/
