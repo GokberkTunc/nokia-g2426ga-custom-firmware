@@ -135,6 +135,24 @@ Yaklaşık 60 saniye sonra modeminiz açıldığında işlem tamamlanmıştır!
   - `Ağ -> LAN` sayfasına girin.
   - Kilitleri kalkmış olan DNS kutularına `1.1.1.1` veya `9.9.9.9` yazıp **Kaydet** butonuna basın.
 
+- **🔑 Superonline PPPoE Kullanıcı Adı ve Şifresini Öğrenme:**
+  Superonline normalde müşterilerine fiber internet PPPoE kullanıcı adı ve şifresini vermez. 
+  
+  **Bu bilgiler yeni firmware yazılınca kaybolur mu?**  
+  **HAYIR, KESİNLİKLE KAYBOLMAZ.** Modemin yazılımı (`/dev/mtd2` veya `/dev/mtd4`) ile kullanıcı ayarları (`/dev/mtd5`, `/configs`) tamamen ayrı donanımsal bölümlerde tutulur. Flaşlama işlemi sadece firmware bölümüne yazıldığı için mevcut kullanıcı adınız, şifreniz ve bağlantı ayarlarınız aynen korunur.
+
+  **Bu şifreyi nasıl açık metin olarak görebilir ve yedekleyebilirsiniz?**  
+  Root kabuğuna bağlandıktan sonra şu tek satırlık komutu girmeniz yeterlidir:
+  ```bash
+  grep -E '^(user|password)' /etc/ppp/options_ppp*
+  ```
+  Ekrana doğrudan açık metin (plaintext) olarak şifreniz yazılacaktır:
+  ```text
+  user "kullanici_adiniz@fiber"
+  password "superonline_sifreniz"
+  ```
+  *(Bu şifreyi bir kenara not ederek, Köprü Moduna aldığınız Nokia'nın arkasına takacağınız kendi özel router'ınızda doğrudan kullanabilirsiniz!)*
+
 - **Operatör Uzaktan Yönetimini (TR-069) Kapatma:**
   Telnet kabuğundan şu komutları vererek servis sağlayıcının uzaktan ayar değiştirmesini veya imaj yüklemesini kalıcı olarak durdurabilirsiniz:
   ```sh
