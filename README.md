@@ -118,12 +118,32 @@ Yaklaşık 60 saniye sonra modeminiz açıldığında işlem tamamlanmıştır!
 
 #### 🎯 Adım 4: Özgürlüğün Tadını Çıkarın (Hızlı İpuçları)
 
-- **Şifresiz Kalıcı Root Erişimi:**
-  Artık dilediğiniz zaman terminalinizden doğrudan modeme bağlanabilirsiniz:
-  ```bash
-  telnet 192.168.1.1 2324
-  ```
-  *(Şifre sormaz, doğrudan `#` root yetkisiyle açılır. Cihaz kapansa veya elektrik kesilse bile kalıcıdır.)*
+- **💻 Şifresiz Kalıcı Root Erişimi (Telnet ile Bağlanma):**
+  Modemin Linux root kabuğuna bağlanmak için **3 farklı ve çok kolay yol** vardır:
+
+  - **Yol 1: Depodaki Hazır Terminal ile (En Kolayı, Sıfır Kurulum):**  
+    Hiçbir program indirmeden doğrudan şu komutla interaktif terminali açabilirsiniz:
+    ```bash
+    python tools/terminal.py
+    ```
+    *(Tek komut çalıştırıp çıkmak için: `python tools/terminal.py --cmd "uptime"`)*
+
+  - **Yol 2: PuTTY ile Bağlanma (Görsel ve Pratik):**  
+    [PuTTY](https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html) programını açın:
+    - **Host Name:** `192.168.1.1`
+    - **Port:** `2324` *(Geçici ilk exploit için: `2360`)*
+    - **Connection type:** **Telnet** (veya Raw) seçip **Open**'a basın.
+
+  - **Yol 3: Windows Komut İstemi'nden (CMD):**  
+    Windows'ta Telnet varsayılan olarak kapalıdır. Açmak için Yönetici PowerShell'de bir kez şu komutu çalıştırın:
+    ```powershell
+    dism /online /Enable-Feature /FeatureName:TelnetClient
+    ```
+    Ardından normal CMD'den doğrudan bağlanabilirsiniz:
+    ```cmd
+    telnet 192.168.1.1 2324
+    ```
+  *(Her üç yöntemde de şifre sorulmaz, doğrudan `#` root yetkisiyle açılır. Cihaz kapansa bile kalıcıdır.)*
 
 - **Gerçek Köprü Modu (Bridge Mode) Açma:**
   Web arayüzünde (`http://192.168.1.1`):
@@ -240,6 +260,7 @@ nokia-g2426ga-custom-firmware/
 │   ├── TEKNIK_DETAYLAR.md               # Çekirdek, MTD, HDR2 ve tersine mühendislik kılavuzu
 │   └── DENEYIMLER_VE_COZUMLER.md        # Karşılaşılan engeller ve kök neden analizleri
 ├── tools/
+│   ├── terminal.py                      # Çapraz platform interaktif Telnet terminali & komut çalıştırıcı
 │   ├── initial_access/
 │   │   └── get_initial_shell.py         # Kilitli modeme tek tıkla ilk geçici root açıcı
 │   ├── repack/
