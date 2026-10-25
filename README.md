@@ -199,6 +199,49 @@ Yaklaşık 60 saniye sonra modeminiz açıldığında işlem tamamlanmıştır!
   cfgcli commit
   ```
 
+- **⚠️ "The normal user do not have permission to do this!" hatası (LAN IP değiştiremiyorum):**
+  Bu bir kullanıcı/yetki sorunu **değildir**. Stok `lan_ipv4.cgi` ikilisinde operatöre bağlı bir kapı vardır:
+
+  ```c
+  /* lan_ipv4.cgi, sadeleştirilmiş */
+  if (!strcmp(query_string, "config")) {
+      if (!is_operatorId("PHRA"))        /* TRCL, ALCL ... => 0 */
+          deny("The normal user do not have permission to do this!");
+  }
+  ```
+
+  Yani `POST /lan_ipv4.cgi?config` isteği yalnızca **PHRA** operatör kimliğinde kabul edilir.
+  SuperUser hesabıyla da, hatta `?config` adresine düz **GET** atmakla da aynı hata döner —
+  bu yüzden menü/RBAC yamaları bu hatayı çözmez.
+
+  **Kalıcı çözüm (v7 imajı):** CGI'yı yamalayıp kök dosya sistemine gömün:
+  ```bash
+  python tools/repack/patch_lan_gate.py rootfs_sq/webs/lan_ipv4.cgi
+  ```
+  Yamalanan iki komut (MIPS `bnez` → koşulsuz `b`, yani izin kontrolünün sonucu yok sayılır):
+  ```text
+  0x406210 : 14 40 00 04  ->  10 40 00 04    (?config kapısı)
+  0x4074c0 : 14 40 01 fc  ->  10 40 01 fc    (?allbridge kapısı)
+  ```
+
+  **Anlık çözüm (cihazda, yeniden başlatmaya kadar):**
+  ```sh
+  mkdir -p /configs/webs_patch
+  cp /webs/lan_ipv4.cgi /configs/webs_patch/
+  # 0x6210+3 ve 0x74c0+3 baytlarını 0x14 -> 0x10 yapın (ya da yukarıdaki betiği kullanın)
+  printf '\020' | dd of=/configs/webs_patch/lan_ipv4.cgi bs=1 seek=25107 conv=notrunc
+  printf '\020' | dd of=/configs/webs_patch/lan_ipv4.cgi bs=1 seek=29891 conv=notrunc
+  chmod 755 /configs/webs_patch/lan_ipv4.cgi
+  mount --bind /configs/webs_patch/lan_ipv4.cgi /webs/lan_ipv4.cgi
+  ```
+
+  **İkinci tuzak:** Bu sayfa onay kutularını (checkbox) **varlık** ile değerlendirir. Elle POST
+  atarken işaretli olmayan kutuları **hiç göndermeyin**, yoksa veri modeli şu hatayı verir:
+  ```text
+  rts_LanHostCfgObject:324: Only DHCPRelay or DHCPServer can be enabled
+  error set LanHostCfgObject
+  ```
+
 ---
 
 # 🔬 Bölüm 2: İleri Düzey & Mühendislik Detayları (Teknik Kılavuz)
@@ -285,6 +328,7 @@ nokia-g2426ga-custom-firmware/
 │   │   └── get_initial_shell.py         # Kilitli modeme tek tıkla ilk geçici root açıcı
 │   ├── repack/
 │   │   ├── repack_firmware.py           # HDR2 başlık ve JAMCRC hesaplayıcı / repacker
+│   │   ├── patch_lan_gate.py            # lan_ipv4.cgi operatör kapısını yamalar (LAN IP izni)
 │   │   ├── gen_pseudo.py                # SquashFS izin tablosu üretici
 │   │   ├── perms.pf                     # 2.814 düğümün dosya yetki tablosu
 │   │   └── patch_menu.py                # menu.cgi rol fonksiyonu makine kodu yamalayıcısı

@@ -244,3 +244,70 @@ yaptırılır.
 - **Kalıcılık:** PPPoE profili `/dev/mtd5` içinde olduğu için `image0`/`image1` arasında
   firmware değiştirmek bu bilgileri **silmez**.
 
+---
+
+## 8. Operatör Kapıları: `lan_ipv4.cgi` "Normal User" Hatası
+
+Web arayüzünde LAN IP'sini değiştirmek isteyen kullanıcı şu mesajı alır:
+
+```html
+<script>alert("The normal user do not have permission to do this!");</script>
+```
+
+Mesaj yanıltıcıdır: **oturum rolüyle ilgisi yoktur.** Mesajı basan kod `lan_ipv4.cgi`
+ikilisinin içindedir ve karar `libcgi.so` içindeki `is_operatorId()` fonksiyonuna dayanır.
+
+### 8.1. `is_operatorId()` Semantiği
+
+`libcgi.so` (0x257f0, 200 bayt) sadeleştirilmiş olarak:
+
+```c
+int is_operatorId(const char *op) {
+    char buf[0x80] = {0};
+    snprintf(buf, 0x80, "%s", g_operatorId);   /* çalışma anındaki OperatorID */
+    return strncmp(op, buf, 4) == 0;           /* ilk 4 karakter eşleşirse 1 */
+}
+```
+
+### 8.2. Kapı Mantığı
+
+```asm
+0x4061d0  lui   $v0, 0x41
+0x4061d4  addiu $a1, $v0, -0x5960     ; "config"  (QUERY_STRING)
+0x4061e0  jalr  strcmp
+0x4061ec  bnez  $v0, 0x407494         ; "config" değilse sıradaki aksiyona bak
+0x4061f8  addiu $a0, $v0, -0x5958     ; "PHRA"
+0x406204  jalr  is_operatorId
+0x406210  bnez  $v0, 0x406224         ; PHRA ise normal akış
+0x406218  jal   0x4057d8              ; değilse: "permission" sayfası
+```
+
+Aynı desen `?allbridge` (0x4074c0) ve `?bindmac` (0x407d78) için de vardır.
+Sonuç: Turkcell (`TRCL`) ve Alcatel (`ALCL`) kimliklerinde bu üç aksiyon **tasarım gereği**
+kapalıdır; menü/RBAC yamaları bu kapıyı açmaz, çünkü kapı CGI'nın içindedir.
+
+### 8.3. Yama
+
+`bnez` → koşulsuz `b` dönüşümü, izin kontrolünün sonucunu yok sayar:
+
+| Adres | Önce | Sonra | Etki |
+|---|---|---|---|
+| `0x406210` | `14 40 00 04` | `10 40 00 04` | `?config` (LAN IP + DHCP) açılır |
+| `0x4074c0` | `14 40 01 fc` | `10 40 01 fc` | `?allbridge` (port modu) açılır |
+
+Uygulama: `tools/repack/patch_lan_gate.py`. `lan_ipv6.cgi?config` ayrı bir mekanizma
+kullanır ve bu yamadan etkilenmez.
+
+### 8.4. Onay Kutusu (Checkbox) Tuzağı
+
+`?config` işleyicisi veri modelini `cfg_setObj()` ile tek seferde yazar. Onay kutuları
+**anahtarın varlığı** ile "true" sayılır. Tarayıcı işaretsiz kutuları hiç göndermez; elle
+POST atarken `dhcpRelayEnable=0` gibi bir alan göndermek "DHCP Relay açık" olarak yorumlanır
+ve `rts_LanHostCfgObject()` şu hatayı üretir:
+
+```text
+Only DHCPRelay or DHCPServer can be enabled
+cfgXml_setObject: RTS failed, ret=9007
+```
+
+
