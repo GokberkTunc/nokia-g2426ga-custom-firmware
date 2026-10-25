@@ -156,22 +156,40 @@ Yaklaşık 60 saniye sonra modeminiz açıldığında işlem tamamlanmıştır!
   - Kilitleri kalkmış olan DNS kutularına `1.1.1.1` veya `9.9.9.9` yazıp **Kaydet** butonuna basın.
 
 - **🔑 Superonline PPPoE Kullanıcı Adı ve Şifresini Öğrenme:**
-  Superonline normalde müşterilerine fiber internet PPPoE kullanıcı adı ve şifresini vermez. 
-  
+  Superonline normalde müşterilerine fiber internet PPPoE kullanıcı adı ve şifresini vermez.
+
   **Bu bilgiler yeni firmware yazılınca kaybolur mu?**  
   **HAYIR, KESİNLİKLE KAYBOLMAZ.** Modemin yazılımı (`/dev/mtd2` veya `/dev/mtd4`) ile kullanıcı ayarları (`/dev/mtd5`, `/configs`) tamamen ayrı donanımsal bölümlerde tutulur. Flaşlama işlemi sadece firmware bölümüne yazıldığı için mevcut kullanıcı adınız, şifreniz ve bağlantı ayarlarınız aynen korunur.
 
-  **Bu şifreyi nasıl açık metin olarak görebilir ve yedekleyebilirsiniz?**  
-  Root kabuğuna bağlandıktan sonra şu tek satırlık komutu girmeniz yeterlidir:
+  **Kullanıcı adı (açık metin):** Kullanıcı adı gizli değildir, tek komutla okunur:
   ```bash
-  grep -E '^(user|password)' /etc/ppp/options_ppp*
+  cfgcli -g InternetGatewayDevice.WANDevice.1.WANConnectionDevice.1.WANPPPConnection.1.Username
+  # veya
+  grep '^user' /etc/ppp/options_ppp*
   ```
-  Ekrana doğrudan açık metin (plaintext) olarak şifreniz yazılacaktır:
-  ```text
-  user "kullanici_adiniz@fiber"
-  password "superonline_sifreniz"
+
+  **Şifre (şifreli saklanır):** Şifre, veri modelinde **düğüm seviyesinde şifreli** olarak tutulur
+  (`ealgo="sab"`, `kn="key11"`). Bu yüzden `cfgcli -g` çıktısı `******` döner; web arayüzü de
+  `!!!@@@###$$$^^^&&&***` gibi bir "değiştirme" yer tutucusu gösterir. Şifre yalnızca **pppd
+  gerçekten arama yaparken** açık metne çevrilip `/etc/ppp/options_ppp<N>` dosyasına yazılır.
+  Oturum aktifken (veya kurulurken) şu komutla yakalayabilirsiniz:
+  ```bash
+  while true; do grep -H '^password' /etc/ppp/options_ppp* 2>/dev/null && break; sleep 2; done
   ```
-  *(Bu şifreyi bir kenara not ederek, Köprü Moduna aldığınız Nokia'nın arkasına takacağınız kendi özel router'ınızda doğrudan kullanabilirsiniz!)*
+  *(Hat bağlı değilken bu satır dosyada bulunmaz; yalnızca `user` satırı görünür.)*
+
+- **🗄️ Şifreli Ana Konfigürasyonu (`config_encryption.cfg`) Çözme:**
+  `/configs/config_encryption.cfg` şifreli bir kapsayıcıdır (52 bayt başlık + deflate + blok şifre).
+  Anahtarı kırmanıza gerek yok: modemin kendi yapılandırma yöneticisi (`cfgcli`) dosyayı çözüp
+  düz XML olarak `/tmp/dump.xml` içine bırakır. Depodaki araç bunu otomatik yapar:
+  ```bash
+  python tools/config/cfg_dump.py                       # tüm ayarlar (şifreli düğümler maskeli)
+  python tools/config/cfg_dump.py --grep pppoe          # sadece PPPoE ile ilgili yollar
+  python tools/config/cfg_dump.py --out config.xml      # çözülmüş XML'i diske kaydet
+  ```
+  Sonuç: ~6.800 dolu düğüm, `Tam.Yol = değer` biçiminde. Düğüm seviyesinde şifreli alanlar
+  `<ENCRYPTED kn=key11>` olarak işaretlenir. Teknik ayrıntılar için `docs/TEKNIK_DETAYLAR.md`
+  içindeki **"Konfigürasyon Kasası"** bölümüne bakın.
 
 - **Operatör Uzaktan Yönetimini (TR-069) Kapatma:**
   Telnet kabuğundan şu komutları vererek servis sağlayıcının uzaktan ayar değiştirmesini veya imaj yüklemesini kalıcı olarak durdurabilirsiniz:
@@ -261,6 +279,8 @@ nokia-g2426ga-custom-firmware/
 │   └── DENEYIMLER_VE_COZUMLER.md        # Karşılaşılan engeller ve kök neden analizleri
 ├── tools/
 │   ├── terminal.py                      # Çapraz platform interaktif Telnet terminali & komut çalıştırıcı
+│   ├── config/
+│   │   └── cfg_dump.py                  # Şifreli config DB'sini cihaz üzerinde çözüp indirir
 │   ├── initial_access/
 │   │   └── get_initial_shell.py         # Kilitli modeme tek tıkla ilk geçici root açıcı
 │   ├── repack/

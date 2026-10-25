@@ -144,3 +144,103 @@ Cihaz kimlik bölümündeki `OperatorID: TRCL` (Turkcell Superonline) değeri `r
 - Web motoru (`libcgi.so`), çağrılan her CGI isteğini `/etc/configs/rbac/{AdminUser,NormalUser}/` altındaki `authorizedcgi` listesinde denetler. Listede olmayan sayfalar `"Bad request for invalid parameter in the coookie."` sahte çerez hatasıyla reddedilir.
 - Tüm `Adminuser.json` ve `Normaluser.json` dosyalarına **2.702 adet CGI yetki girdisi** işlendi ve tüm `"visibility": -1` kısıtlamaları `1` yapıldı.
 - `menu.cgi` ikilisindeki `0x400fbc` rol seçici fonksiyonu daima `ADMIN` döndürecek şekilde 16 baytlık makine koduyla yamalandı. Böylece 66 gelişmiş menü hedefi sol gezinme çubuğunda kalıcı olarak görünür kılındı.
+
+---
+
+## 7. Konfigürasyon Kasası: `config_encryption.cfg` Analizi
+
+Cihazın tüm kalıcı ayarları `/dev/mtd5` (`UBIFS`, `/configs`) üzerindeki
+`/configs/config_encryption.cfg` dosyasında tutulur. Bu dosya iki katmanlı korunur.
+
+### 7.1. Katman 1 — Dosya Kapsayıcısı
+
+Dosya 52 baytlık bir başlık ve ardından gelen tek bir gövdeden oluşur:
+
+```text
+Ofset   Boyut   İçerik
+--------------------------------------------------------------------------
+0x00    4 B     Ayırılan tampon kapasitesi (ör. 0x124124)
+0x04    4 B     Gövde (ciphertext) uzunluğu
+0x08    4 B     Düz metnin CRC32 sağlaması
+0x0C    4 B     Açılmış (deflate sonrası) uzunluk, NUL dahil
+0x10   36 B     KDF/şifre parametreleri (anahtar kaynağı türevi)
+0x34    n B     Deflate sıkıştırılmış + şifrelenmiş XML gövdesi
+```
+
+Gözlemler (canlı cihazdan alınan 139.197 baytlık dosya üzerinde):
+
+- Gövde entropisi **7.999 bit/bayt**, 256 farklı bayt değeri → gerçek şifreleme.
+- 8 ve 16 baytlık bloklarda **hiç tekrar yok** → ECB değil (CBC/CFB/CTR benzeri).
+- Gövde uzunluğu blok boyutunun katı değil → akış (stream) modu veya sıkıştırma sonrası
+  hizalama yok.
+- `cfgmgr` ikilisinde `des3_encrypt`, `CS_crypt`, `CS_cryptFile`, `CS_getCryptOutLen`
+  sembolleri; `libsec_engine.so` içinde `EVP_CIPHER`, `PKCS5_PBKDF2_HMAC`, `EVP_sha256`,
+  `AES_set_*_key`, `AES_cbc_encrypt` bağımlılıkları bulunur.
+
+**Pratik sonuç:** Dosya kapsayıcısını çözmek için anahtar kırmaya gerek yoktur. `libcfg.so`
+üzerinden `cfgcli`'ye "dump dbfile" isteği gönderildiğinde, çözme işlemini **cfgmgr kendi
+belleğinde** yapar ve sonucu düz XML olarak verir:
+
+```sh
+cfgcli dump dbfile 3      # 3 = config_encryption.cfg, 4 = .bak, 1/2 = confignew.cfg(.bak)
+# -> "the uncompress db file in /tmp/dump.xml"
+```
+
+Çıktı: ~999 KB, `<?xml version="1.0"?>` ile başlayan, `InternetGatewayDevice.` kökü altında
+düğümleri `t=`, `rw=`, `ml=`, `dv=`, `v=` öznitelikleriyle taşıyan XML.
+
+### 7.2. Katman 2 — Düğüm Seviyesinde Şifreleme
+
+Düz XML'e ulaştıktan sonra bile hassas düğümler açık metin değildir:
+
+```xml
+<Password ml="64" rw="RW" t="string"
+          v="AbCdEf0123456789+/ZzYyXx=="
+          ealgo="sab" kn="key11" ckn="key3"></Password>
+```
+
+| Öznitelik | Anlamı |
+|---|---|
+| `ealgo="sab"` | Değerin "secure algorithm B" ile şifreli olduğunu belirtir |
+| `kn="key11"` | Şifreleme anahtarının adı (sec-engine anahtar deposundan) |
+| `ckn="key3"` | Bütünlük/checksum anahtarının adı |
+| `v="<base64>"` | 24 baytlık blok → base64 (32 karakter) |
+
+Bu nedenle `cfgcli -g ...Password` çıktısı `******`, web arayüzü ise
+`!!!@@@###$$$^^$&&&***` benzeri bir "değiştirme" yer tutucusu döndürür.
+
+### 7.3. Anahtar Kaynağı Zinciri
+
+```text
+/configs/se.conf  [keys]
+    keysrc0 = <firmware sürüm dizesi>      (tüm cihazlarda ortak)
+    keysrc1 = <cihaza özgü 8 haneli tohum> (cihaza bağlı)
+    keysrc2 = <üretim/sürüm kodu>
+        │
+        ▼  (önyüklemede se_engine tarafından)
+/tmp/secKeySrc.conf   +   sedbfile=/tmp/sedb.conf
+        │
+        ▼  libsec_engine.so
+SE_deriveKey / SE_deriveKeyStr / CS_getSha256Key
+    PBKDF2-HMAC-SHA256 + salt  →  AES/3DES anahtar materyali
+        │
+        ├─► CS_cryptFile / CS_cryptFileProdKey  → dosya kapsayıcısı
+        └─► CS_crypt / CS_cryptString           → düğüm değerleri (key11)
+```
+
+**Sonuç:** Anahtar malzemesi cihaza bağlıdır (`keysrc1`). Bir cihazdan alınan
+`config_encryption.cfg` dosyası **başka bir cihazda** kendi başına çözülemez; aynı cihaz
+üzerinde ise `cfgcli` ve `ndk_wand` gibi bileşenler çözmeyi zaten yapabilir. Bu yüzden
+yayımlanan araçlarda **anahtar malzemesi yoktur**; çözme işi her zaman cihazın kendisine
+yaptırılır.
+
+### 7.4. PPPoE Kimlik Bilgileri Nerede?
+
+- **Kullanıcı adı:** Veri modelinde açık metin (`...WANPPPConnection.1.Username`), ayrıca
+  `/etc/ppp/options_ppp<N>` içinde `user "..."` satırı olarak bulunur.
+- **Şifre:** `kn="key11"` ile düğüm seviyesinde şifreli. Açık metin yalnızca `ndk_wand`
+  pppd'yi başlatırken üretilir ve `/etc/ppp/options_ppp<N>` dosyasına `password "..."` satırı
+  olarak yazılır. Oturum kapalıyken bu satır dosyada bulunmaz (yalnızca `user` satırı kalır).
+- **Kalıcılık:** PPPoE profili `/dev/mtd5` içinde olduğu için `image0`/`image1` arasında
+  firmware değiştirmek bu bilgileri **silmez**.
+
